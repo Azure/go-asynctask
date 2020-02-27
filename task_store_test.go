@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/haitch/taskStore"
+	"github.com/stretchr/testify/assert"
 )
 
 func countingTask(ctx context.Context) (interface{}, error) {
@@ -24,10 +25,12 @@ func TestEasyCase(t *testing.T) {
 
 	ts := taskStore.New()
 	ts.RegistTask("t1", countingTask)
-	fmt.Println("Task Queued")
+
 	result := ts.GetTask("t1")
-	fmt.Println(result)
+	assert.Equal(t, result.Status, taskStore.TaskStatusRunning, "Task should queued to Running")
+
 	time.Sleep(time.Second * 3)
+
 	result = ts.GetTask("t1")
-	fmt.Println(result)
+	assert.Equal(t, result.Status, taskStore.TaskStatusCompleted, "Task should complete by now")
 }

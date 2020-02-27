@@ -42,9 +42,9 @@ func (store *storeImpl) RegistTask(key string, task func(context.Context) (inter
 	}
 	store.TaskMap[key] = record
 	go func() {
-		fmt.Printf("> starting task %s\n", key)
+		fmt.Printf("⬇️⬇️⬇️ starting task %s\n", key)
 		result, err := task(ctx)
-		fmt.Printf("> finishing task %s\n", key)
+		fmt.Printf("⬆️⬆️⬆️ finishing task %s\n", key)
 		if err != nil {
 			record.Status = TaskStatusFailed
 			record.Error = err
