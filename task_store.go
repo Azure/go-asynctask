@@ -2,7 +2,6 @@ package taskStore
 
 import (
 	"context"
-	"fmt"
 )
 
 type TaskStatus string
@@ -19,8 +18,9 @@ type TaskResult struct {
 }
 
 type Interface interface {
-	RegistTask(key string, task func(context.Context) (interface{}, error))
+	RegistTask(ctx context.Context, key string, task func(context.Context) (interface{}, error))
 	GetTask(key string) *TaskResult
+	WaitTask(key string) *TaskResult
 }
 
 func New() Interface {
@@ -33,8 +33,7 @@ type storeImpl struct {
 	TaskMap map[string]*TaskResult
 }
 
-func (store *storeImpl) RegistTask(key string, task func(context.Context) (interface{}, error)) {
-	ctx := context.Background()
+func (store *storeImpl) RegistTask(ctx context.Context, key string, task func(context.Context) (interface{}, error)) {
 	record := &TaskResult{
 		Context: ctx,
 		Status:  TaskStatusRunning,
@@ -42,9 +41,7 @@ func (store *storeImpl) RegistTask(key string, task func(context.Context) (inter
 	}
 	store.TaskMap[key] = record
 	go func() {
-		fmt.Printf("⬇️⬇️⬇️ starting task %s\n", key)
 		result, err := task(ctx)
-		fmt.Printf("⬆️⬆️⬆️ finishing task %s\n", key)
 		if err != nil {
 			record.Status = TaskStatusFailed
 			record.Error = err
@@ -56,6 +53,15 @@ func (store *storeImpl) RegistTask(key string, task func(context.Context) (inter
 }
 
 func (store *storeImpl) GetTask(key string) *TaskResult {
+	if value, exists := store.TaskMap[key]; exists {
+		//delete(store.TaskMap, key)
+		return value
+	}
+	return nil
+}
+
+func (store *storeImpl) WaitTask(key string) *TaskResult {
+	// TODO: Implement
 	if value, exists := store.TaskMap[key]; exists {
 		//delete(store.TaskMap, key)
 		return value

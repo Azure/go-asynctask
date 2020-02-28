@@ -22,9 +22,9 @@ func countingTask(ctx context.Context) (interface{}, error) {
 
 func TestEasyCase(t *testing.T) {
 	t.Parallel()
-
+	ctx := context.Background()
 	ts := taskStore.New()
-	ts.RegistTask("t1", countingTask)
+	ts.RegistTask(ctx, "t1", countingTask)
 
 	result := ts.GetTask("t1")
 	assert.Equal(t, result.Status, taskStore.TaskStatusRunning, "Task should queued to Running")
