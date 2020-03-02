@@ -22,6 +22,9 @@ const StateFailed State = "Failed"
 // StateCanceled indicate task got canceled.
 const StateCanceled State = "Canceled"
 
+// AsyncFunc is a function interface this asyncTask accepts.
+type AsyncFunc func(context.Context) (interface{}, error)
+
 // TaskStatus is a handle to the running function.
 // which you can use to wait, cancel, get the result.
 type TaskStatus struct {
@@ -65,7 +68,7 @@ func (t *TaskStatus) Wait() (interface{}, error) {
 }
 
 // StartTask returns you a handle which you can Wait or Cancel.
-func StartTask(ctx context.Context, task func(ctx context.Context) (interface{}, error)) *TaskStatus {
+func StartTask(ctx context.Context, task AsyncFunc) *TaskStatus {
 	ctx, cancel := context.WithCancel(ctx)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
