@@ -67,8 +67,8 @@ func (t *TaskStatus) Wait() (interface{}, error) {
 	return t.result, t.err
 }
 
-// StartTask returns you a handle which you can Wait or Cancel.
-func StartTask(ctx context.Context, task AsyncFunc) *TaskStatus {
+// Start run a async function and returns you a handle which you can Wait or Cancel.
+func Start(ctx context.Context, task AsyncFunc) *TaskStatus {
 	ctx, cancel := context.WithCancel(ctx)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)

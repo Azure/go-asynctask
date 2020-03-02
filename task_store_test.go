@@ -33,7 +33,7 @@ func countingTask(ctx context.Context) (interface{}, error) {
 func TestEasyCase(t *testing.T) {
 	t.Parallel()
 	ctx := context.WithValue(context.TODO(), testContextKey, t)
-	t1 := asynctask.StartTask(ctx, countingTask)
+	t1 := asynctask.Start(ctx, countingTask)
 
 	assert.Equal(t, asynctask.StateRunning, t1.State(), "Task should queued to Running")
 
@@ -51,7 +51,7 @@ func TestEasyCase(t *testing.T) {
 func TestCancelFunc(t *testing.T) {
 	t.Parallel()
 	ctx := context.WithValue(context.TODO(), testContextKey, t)
-	t1 := asynctask.StartTask(ctx, countingTask)
+	t1 := asynctask.Start(ctx, countingTask)
 
 	assert.Equal(t, asynctask.StateRunning, t1.State(), "Task should queued to Running")
 
@@ -80,7 +80,7 @@ func TestCrazyCase(t *testing.T) {
 	ctx := context.WithValue(context.TODO(), testContextKey, t)
 	tasks := map[int]*asynctask.TaskStatus{}
 	for i := 0; i < 10000; i++ {
-		tasks[i] = asynctask.StartTask(ctx, countingTask)
+		tasks[i] = asynctask.Start(ctx, countingTask)
 	}
 
 	time.Sleep(time.Second * 1)
