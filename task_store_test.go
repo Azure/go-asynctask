@@ -1,11 +1,11 @@
-package taskstore_test
+package asynctask_test
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	taskstore "github.com/haitch/taskStore"
+	"github.com/haitch/asynctask"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -33,14 +33,14 @@ func countingTask(ctx context.Context) (interface{}, error) {
 func TestEasyCase(t *testing.T) {
 	t.Parallel()
 	ctx := context.WithValue(context.TODO(), testContextKey, t)
-	t1 := taskstore.StartTask(ctx, countingTask)
+	t1 := asynctask.StartTask(ctx, countingTask)
 
-	assert.Equal(t, taskstore.StateRunning, t1.State(), "Task should queued to Running")
+	assert.Equal(t, asynctask.StateRunning, t1.State(), "Task should queued to Running")
 
 	rawResult, err := t1.Wait()
 	assert.NoError(t, err)
 
-	assert.Equal(t, taskstore.StateCompleted, t1.State(), "Task should complete by now")
+	assert.Equal(t, asynctask.StateCompleted, t1.State(), "Task should complete by now")
 	assert.NotNil(t, rawResult)
 	result := rawResult.(int)
 	assert.Equal(t, result, 9)
@@ -51,9 +51,9 @@ func TestEasyCase(t *testing.T) {
 func TestCancelFunc(t *testing.T) {
 	t.Parallel()
 	ctx := context.WithValue(context.TODO(), testContextKey, t)
-	t1 := taskstore.StartTask(ctx, countingTask)
+	t1 := asynctask.StartTask(ctx, countingTask)
 
-	assert.Equal(t, taskstore.StateRunning, t1.State(), "Task should queued to Running")
+	assert.Equal(t, asynctask.StateRunning, t1.State(), "Task should queued to Running")
 
 	time.Sleep(time.Second * 1)
 	t1.Cancel()
@@ -61,7 +61,7 @@ func TestCancelFunc(t *testing.T) {
 	rawResult, err := t1.Wait()
 	assert.NoError(t, err)
 
-	assert.Equal(t, taskstore.StateCanceled, t1.State(), "Task should complete by now")
+	assert.Equal(t, asynctask.StateCanceled, t1.State(), "Task should complete by now")
 	assert.NotNil(t, rawResult)
 	result := rawResult.(int)
 	assert.Less(t, result, 9)
@@ -78,9 +78,9 @@ func TestCancelFunc(t *testing.T) {
 func TestCrazyCase(t *testing.T) {
 	t.Parallel()
 	ctx := context.WithValue(context.TODO(), testContextKey, t)
-	tasks := map[int]*taskstore.TaskStatus{}
+	tasks := map[int]*asynctask.TaskStatus{}
 	for i := 0; i < 10000; i++ {
-		tasks[i] = taskstore.StartTask(ctx, countingTask)
+		tasks[i] = asynctask.StartTask(ctx, countingTask)
 	}
 
 	time.Sleep(time.Second * 1)

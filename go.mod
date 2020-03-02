@@ -1,4 +1,4 @@
-module github.com/haitch/taskStore
+module github.com/haitch/asynctask
 
 go 1.13
 
