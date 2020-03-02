@@ -29,13 +29,14 @@ type TaskStatus struct {
 	waitGroup  *sync.WaitGroup
 }
 
-// Cancel abort the task execution, only if the function provided handles context cancel.
+// Cancel abort the task execution
+// !! only if the function provided handles context cancel.
 func (t *TaskStatus) Cancel() {
 	t.cancelFunc()
 	t.waitGroup.Wait()
 }
 
-// Wait block current thread/routine until task finished.
+// Wait block current thread/routine until task finished or failed.
 func (t *TaskStatus) Wait() {
 	t.waitGroup.Wait()
 }
