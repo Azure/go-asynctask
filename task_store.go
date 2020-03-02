@@ -48,7 +48,7 @@ func (t *TaskStatus) Cancel() {
 
 	// could have a debate wait or not
 	// my point is wait drives this TaskStatus to a terminal(consistence) state.
-	//	 you can keep Cancel() or Wait() or State() on this handle, and nothing changes.
+	//   you can keep calling Cancel() or Wait() or State() on this handle, and nothing changes.
 	// without this wait
 	//   1. nothing blocks invoking Wait() on this handle after Cancel()
 	//   2. the state, result, error, can be non-deterministic.
