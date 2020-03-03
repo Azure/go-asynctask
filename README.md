@@ -1,6 +1,16 @@
 # AsyncTask
 
-Simple mimik of async/await for those come from C# world.
+Simple mimik of async/await for those come from C# world, so you don't need to dealing with waitGroup/channel in golang.
+
+```golang
+    task := asynctask.Start(ctx, countingTask)
+    // do something else
+
+    // get the result
+    rawResult, err := t1.Wait()
+    // or
+    task.Cancel()
+```
 
 # Contributing
 
