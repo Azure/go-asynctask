@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/haitch/asynctask"
+	"github.com/azure/asynctask"
 	"github.com/stretchr/testify/assert"
 )
 

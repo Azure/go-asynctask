@@ -1,4 +1,4 @@
-module github.com/haitch/asynctask
+module github.com/azure/asynctask
 
 go 1.13
 
