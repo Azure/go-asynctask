@@ -1,5 +1,7 @@
 # AsyncTask
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/Azure/go-asynctask)](https://goreportcard.com/report/github.com/Azure/go-asynctask)
+
 Simple mimik of async/await for those come from C# world, so you don't need to dealing with waitGroup/channel in golang.
 
 ```golang
