@@ -13,27 +13,33 @@ type notMatter string
 
 const testContextKey notMatter = "testing"
 
-func countingTask(ctx context.Context) (interface{}, error) {
-	t := ctx.Value(testContextKey).(*testing.T)
+func newTestContext(t *testing.T) context.Context {
+	return context.WithValue(context.TODO(), testContextKey, t)
+}
 
-	result := 0
-	for i := 0; i < 10; i++ {
-		select {
-		case <-time.After(200 * time.Millisecond):
-			t.Logf("  working %d", i)
-			result = i
-		case <-ctx.Done():
-			t.Log("work canceled")
-			return result, nil
+func getCountingTask(sleepDuration time.Duration) asynctask.AsyncFunc {
+	return func(ctx context.Context) (interface{}, error) {
+		t := ctx.Value(testContextKey).(*testing.T)
+
+		result := 0
+		for i := 0; i < 10; i++ {
+			select {
+			case <-time.After(sleepDuration):
+				t.Logf("  working %d", i)
+				result = i
+			case <-ctx.Done():
+				t.Log("work canceled")
+				return result, nil
+			}
 		}
+		return result, nil
 	}
-	return result, nil
 }
 
 func TestEasyCase(t *testing.T) {
 	t.Parallel()
-	ctx := context.WithValue(context.TODO(), testContextKey, t)
-	t1 := asynctask.Start(ctx, countingTask)
+	ctx := newTestContext(t)
+	t1 := asynctask.Start(ctx, getCountingTask(200*time.Millisecond))
 
 	assert.Equal(t, asynctask.StateRunning, t1.State(), "Task should queued to Running")
 
@@ -50,8 +56,8 @@ func TestEasyCase(t *testing.T) {
 
 func TestCancelFunc(t *testing.T) {
 	t.Parallel()
-	ctx := context.WithValue(context.TODO(), testContextKey, t)
-	t1 := asynctask.Start(ctx, countingTask)
+	ctx := newTestContext(t)
+	t1 := asynctask.Start(ctx, getCountingTask(200*time.Millisecond))
 
 	assert.Equal(t, asynctask.StateRunning, t1.State(), "Task should queued to Running")
 
@@ -77,10 +83,10 @@ func TestCancelFunc(t *testing.T) {
 
 func TestCrazyCase(t *testing.T) {
 	t.Parallel()
-	ctx := context.WithValue(context.TODO(), testContextKey, t)
+	ctx := newTestContext(t)
 	tasks := map[int]*asynctask.TaskStatus{}
 	for i := 0; i < 10000; i++ {
-		tasks[i] = asynctask.Start(ctx, countingTask)
+		tasks[i] = asynctask.Start(ctx, getCountingTask(200*time.Millisecond))
 	}
 
 	time.Sleep(time.Second * 1)
