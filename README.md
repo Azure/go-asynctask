@@ -8,11 +8,14 @@
 Simple mimik of async/await for those come from C# world, so you don't need to dealing with waitGroup/channel in golang.
 
 ```golang
+    // start task
     task := asynctask.Start(ctx, countingTask)
+    
     // do something else
-
+    somethingelse()
+    
     // get the result
-    rawResult, err := t1.Wait()
+    rawResult, err := task.Wait()
     // or
     task.Cancel()
 ```
