@@ -2,9 +2,11 @@ package asynctask
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"runtime/debug"
 	"sync"
+	"time"
 )
 
 // State of a task.
@@ -24,6 +26,12 @@ const StateCanceled State = "Canceled"
 
 // AsyncFunc is a function interface this asyncTask accepts.
 type AsyncFunc func(context.Context) (interface{}, error)
+
+// ErrPanic is returned if panic cought in the task
+var ErrPanic = errors.New("panic")
+
+// ErrTimeout is returned if task didn't finish within specified time duration.
+var ErrTimeout = errors.New("timeout")
 
 // TaskStatus is a handle to the running function.
 // which you can use to wait, cancel, get the result.
@@ -67,6 +75,24 @@ func (t *TaskStatus) Wait() (interface{}, error) {
 	return t.result, t.err
 }
 
+// WaitWithTimeout block current thread/routine until task finished or failed, or exceed the duration specified.
+func (t *TaskStatus) WaitWithTimeout(timeout time.Duration) (interface{}, error) {
+	defer t.cancelFunc()
+
+	ch := make(chan interface{})
+	go func() {
+		t.waitGroup.Wait()
+		close(ch)
+	}()
+
+	select {
+	case _ = <-ch:
+		return t.result, t.err
+	case <-time.After(timeout):
+		return nil, ErrTimeout
+	}
+}
+
 // Start run a async function and returns you a handle which you can Wait or Cancel.
 func Start(ctx context.Context, task AsyncFunc) *TaskStatus {
 	ctx, cancel := context.WithCancel(ctx)
@@ -88,7 +114,7 @@ func Start(ctx context.Context, task AsyncFunc) *TaskStatus {
 func runAndTrackTask(record *TaskStatus, task func(ctx context.Context) (interface{}, error)) {
 	defer func() {
 		if r := recover(); r != nil {
-			err := fmt.Errorf("Panic cought: %v, StackTrace: %s", r, debug.Stack())
+			err := fmt.Errorf("Panic cought: %v, StackTrace: %s, %w", r, debug.Stack(), ErrPanic)
 			record.state = StateFailed
 			record.err = err
 			record.waitGroup.Done()
