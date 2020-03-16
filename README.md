@@ -1,7 +1,7 @@
 # AsyncTask
 
 ![Build](https://github.com/Azure/go-asynctask/workflows/Go/badge.svg?branch=master)
-[![Go Report Card](https://goreportcard.com/badge/github.com/Azure/go-asynctask)](https://goreportcard.com/badge/github.com/Azure/go-asynctask)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Azure/go-asynctask)](https://goreportcard.com/report/github.com/Azure/go-asynctask)
 [![GoDoc](https://godoc.org/github.com/Azure/go-asynctask?status.svg)](https://godoc.org/github.com/Azure/go-asynctask)
 [![Codecov](https://img.shields.io/codecov/c/github/Azure/go-asynctask)](https://codecov.io/gh/Azure/go-asynctask)
 
