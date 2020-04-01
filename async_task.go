@@ -38,6 +38,9 @@ var ErrPanic = errors.New("panic")
 // ErrTimeout is returned if task didn't finish within specified time duration.
 var ErrTimeout = errors.New("timeout")
 
+// ErrCanceled is returned if a cancel is triggered
+var ErrCanceled = errors.New("canceled")
+
 // TaskStatus is a handle to the running function.
 // which you can use to wait, cancel, get the result.
 type TaskStatus struct {
@@ -59,7 +62,7 @@ func (t *TaskStatus) State() State {
 func (t *TaskStatus) Cancel() {
 	t.cancelFunc()
 
-	t.state = StateCanceled
+	t.finish(StateCanceled, nil, ErrCanceled)
 }
 
 // Wait block current thread/routine until task finished or failed.
@@ -89,8 +92,8 @@ func (t *TaskStatus) WaitWithTimeout(timeout time.Duration) (interface{}, error)
 	case _ = <-ch:
 		return t.result, t.err
 	case <-time.After(timeout):
-		t.state = StateCanceled
-		return nil, ErrTimeout
+		t.finish(StateCanceled, nil, ErrTimeout)
+		return t.result, t.err
 	}
 }
 
