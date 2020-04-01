@@ -65,7 +65,7 @@ func TestCancelFunc(t *testing.T) {
 	t1.Cancel()
 
 	rawResult, err := t1.Wait()
-	assert.NoError(t, err)
+	assert.Equal(t, asynctask.ErrCanceled, err, "should return reason of error")
 
 	assert.Equal(t, asynctask.StateCanceled, t1.State(), "Task should remain in cancel state")
 	assert.Nil(t, rawResult)
@@ -102,6 +102,7 @@ func TestConsistentResultAfterCancel(t *testing.T) {
 
 	// t1 should remain canceled and
 	rawResult, err = t1.Wait()
+	assert.Equal(t, asynctask.ErrCanceled, err, "should return reason of error")
 	assert.Equal(t, asynctask.StateCanceled, t1.State(), "Task should remain in cancel state")
 	assert.Nil(t, rawResult)
 }
