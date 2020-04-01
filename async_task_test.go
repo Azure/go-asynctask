@@ -65,12 +65,10 @@ func TestCancelFunc(t *testing.T) {
 	t1.Cancel()
 
 	rawResult, err := t1.Wait()
-	assert.NoError(t, err)
+	assert.Equal(t, asynctask.ErrCanceled, err, "should return reason of error")
 
-	assert.Equal(t, asynctask.StateCanceled, t1.State(), "Task should complete by now")
-	assert.NotNil(t, rawResult)
-	result := rawResult.(int)
-	assert.Less(t, result, 9)
+	assert.Equal(t, asynctask.StateCanceled, t1.State(), "Task should remain in cancel state")
+	assert.Nil(t, rawResult)
 
 	// cancel a task shouldn't cancel it's parent context.
 	select {
@@ -81,28 +79,87 @@ func TestCancelFunc(t *testing.T) {
 	}
 }
 
+func TestConsistentResultAfterCancel(t *testing.T) {
+	t.Parallel()
+	ctx := newTestContext(t)
+	t1 := asynctask.Start(ctx, getCountingTask(200*time.Millisecond))
+	t2 := asynctask.Start(ctx, getCountingTask(200*time.Millisecond))
+
+	assert.Equal(t, asynctask.StateRunning, t1.State(), "Task should queued to Running")
+
+	time.Sleep(time.Second * 1)
+	start := time.Now()
+	t1.Cancel()
+	duration := time.Since(start)
+	assert.Equal(t, asynctask.StateCanceled, t1.State(), "t1 should turn to Canceled")
+	assert.True(t, duration < 1*time.Millisecond, "cancel shouldn't take that long")
+
+	// wait til routine finish
+	rawResult, err := t2.Wait()
+	assert.NoError(t, err)
+	assert.Equal(t, asynctask.StateCompleted, t2.State(), "t2 should complete")
+	assert.Equal(t, rawResult, 9)
+
+	// t1 should remain canceled and
+	rawResult, err = t1.Wait()
+	assert.Equal(t, asynctask.ErrCanceled, err, "should return reason of error")
+	assert.Equal(t, asynctask.StateCanceled, t1.State(), "Task should remain in cancel state")
+	assert.Nil(t, rawResult)
+}
+
+func TestConsistentResultAfterTimeout(t *testing.T) {
+	t.Parallel()
+	ctx := newTestContext(t)
+	// t1 wait with short time, expect a timeout
+	t1 := asynctask.Start(ctx, getCountingTask(200*time.Millisecond))
+	// t2 wait with enough time, expect to complete
+	t2 := asynctask.Start(ctx, getCountingTask(200*time.Millisecond))
+
+	assert.Equal(t, asynctask.StateRunning, t1.State(), "t1 should queued to Running")
+	assert.Equal(t, asynctask.StateRunning, t2.State(), "t2 should queued to Running")
+
+	rawResult, err := t1.WaitWithTimeout(1 * time.Second)
+	assert.Equal(t, asynctask.ErrTimeout, err, "should return reason of error")
+	assert.Equal(t, asynctask.StateCanceled, t1.State(), "t1 get canceled after timeout")
+	assert.Nil(t, rawResult, "didn't expect resule on canceled task")
+
+	rawResult, err = t2.WaitWithTimeout(2100 * time.Millisecond)
+	assert.NoError(t, err)
+	assert.Equal(t, asynctask.StateCompleted, t2.State(), "t2 should complete")
+	assert.Equal(t, rawResult, 9)
+
+	// even the t1 go routine finished, it shouldn't change any state
+	assert.Equal(t, asynctask.StateCanceled, t1.State(), "t1 should remain canceled even after routine finish")
+	rawResult, err = t1.Wait()
+	assert.Equal(t, asynctask.ErrTimeout, err, "should return reason of error")
+	assert.Nil(t, rawResult, "didn't expect resule on canceled task")
+}
+
 func TestCrazyCase(t *testing.T) {
 	t.Parallel()
 	ctx := newTestContext(t)
+	numOfTasks := 10000
 	tasks := map[int]*asynctask.TaskStatus{}
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < numOfTasks; i++ {
 		tasks[i] = asynctask.Start(ctx, getCountingTask(200*time.Millisecond))
 	}
 
-	time.Sleep(time.Second * 1)
-	for i := 0; i < 10000; i += 2 {
+	time.Sleep(200 * time.Millisecond)
+	for i := 0; i < numOfTasks; i += 2 {
 		tasks[i].Cancel()
 	}
 
-	for i := 0; i < 10000; i += 2 {
+	for i := 0; i < numOfTasks; i += 1 {
 		rawResult, err := tasks[i].Wait()
-		assert.NoError(t, err)
-		assert.NotNil(t, rawResult)
 
-		result := rawResult.(int)
 		if i%2 == 0 {
-			assert.Less(t, result, 9)
+			assert.Equal(t, asynctask.ErrCanceled, err, "should be canceled")
+			assert.Nil(t, rawResult)
 		} else {
+			assert.NoError(t, err)
+			assert.NotNil(t, rawResult)
+
+			result := rawResult.(int)
 			assert.Equal(t, result, 9)
 		}
 	}

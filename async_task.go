@@ -24,6 +24,11 @@ const StateFailed State = "Failed"
 // StateCanceled indicate task got canceled.
 const StateCanceled State = "Canceled"
 
+// IsTerminalState tells whether the task finished
+func (s State) IsTerminalState() bool {
+	return s != StateRunning
+}
+
 // AsyncFunc is a function interface this asyncTask accepts.
 type AsyncFunc func(context.Context) (interface{}, error)
 
@@ -32,6 +37,9 @@ var ErrPanic = errors.New("panic")
 
 // ErrTimeout is returned if task didn't finish within specified time duration.
 var ErrTimeout = errors.New("timeout")
+
+// ErrCanceled is returned if a cancel is triggered
+var ErrCanceled = errors.New("canceled")
 
 // TaskStatus is a handle to the running function.
 // which you can use to wait, cancel, get the result.
@@ -54,23 +62,18 @@ func (t *TaskStatus) State() State {
 func (t *TaskStatus) Cancel() {
 	t.cancelFunc()
 
-	// could have a debate wait or not
-	// my point is wait drives this TaskStatus to a terminal(consistence) state.
-	//   you can keep calling Cancel() or Wait() or State() on this handle, and nothing changes.
-	// without this wait
-	//   1. nothing blocks invoking Wait() on this handle after Cancel()
-	//   2. the state, result, error, can be non-deterministic.
-	t.waitGroup.Wait()
-
-	t.state = StateCanceled
+	t.finish(StateCanceled, nil, ErrCanceled)
 }
 
 // Wait block current thread/routine until task finished or failed.
 func (t *TaskStatus) Wait() (interface{}, error) {
-	t.waitGroup.Wait()
+	// skip the wait if task got canceled.
+	if !t.state.IsTerminalState() {
+		t.waitGroup.Wait()
 
-	// we create new context when starting task, now release it.
-	t.cancelFunc()
+		// we create new context when starting task, now release it.
+		t.cancelFunc()
+	}
 
 	return t.result, t.err
 }
@@ -89,7 +92,8 @@ func (t *TaskStatus) WaitWithTimeout(timeout time.Duration) (interface{}, error)
 	case _ = <-ch:
 		return t.result, t.err
 	case <-time.After(timeout):
-		return nil, ErrTimeout
+		t.finish(StateCanceled, nil, ErrTimeout)
+		return t.result, t.err
 	}
 }
 
@@ -112,23 +116,27 @@ func Start(ctx context.Context, task AsyncFunc) *TaskStatus {
 }
 
 func runAndTrackTask(record *TaskStatus, task func(ctx context.Context) (interface{}, error)) {
+	defer record.waitGroup.Done()
 	defer func() {
 		if r := recover(); r != nil {
 			err := fmt.Errorf("Panic cought: %v, StackTrace: %s, %w", r, debug.Stack(), ErrPanic)
-			record.state = StateFailed
-			record.err = err
-			record.waitGroup.Done()
+			record.finish(StateFailed, nil, err)
 		}
 	}()
 
 	result, err := task(record)
 	if err != nil {
-		record.state = StateFailed
-		record.err = err
-		record.waitGroup.Done()
+		record.finish(StateFailed, result, err)
 	} else {
-		record.state = StateCompleted
-		record.result = result
-		record.waitGroup.Done()
+		record.finish(StateCompleted, result, err)
+	}
+}
+
+func (t *TaskStatus) finish(state State, result interface{}, err error) {
+	// only update state and result if not yet canceled
+	if !t.state.IsTerminalState() {
+		t.state = state
+		t.result = result
+		t.err = err
 	}
 }
