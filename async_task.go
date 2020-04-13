@@ -112,7 +112,7 @@ func NewCompletedTask() *TaskStatus {
 		result: nil,
 		err:    nil,
 		// nil cancelFunc and waitGroup should be protected with IsTerminalState()
-		cancelFunc: func() {},
+		cancelFunc: nil,
 		waitGroup:  nil,
 	}
 }
