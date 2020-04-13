@@ -45,13 +45,23 @@ func TestEasyCase(t *testing.T) {
 
 	rawResult, err := t1.Wait()
 	assert.NoError(t, err)
-
 	assert.Equal(t, asynctask.StateCompleted, t1.State(), "Task should complete by now")
 	assert.NotNil(t, rawResult)
 	result := rawResult.(int)
 	assert.Equal(t, result, 9)
 
-	//assert.Fail(t, "just want to see if trace is working")
+	// wait Again,
+	start := time.Now()
+	rawResult, err = t1.Wait()
+	elapsed := time.Since(start)
+	// nothing should change
+	assert.NoError(t, err)
+	assert.Equal(t, asynctask.StateCompleted, t1.State(), "Task should complete by now")
+	assert.NotNil(t, rawResult)
+	result = rawResult.(int)
+	assert.Equal(t, result, 9)
+
+	assert.True(t, elapsed.Microseconds() < 2, "Second wait should take more than 2 millisecond")
 }
 
 func TestCancelFunc(t *testing.T) {
@@ -66,7 +76,14 @@ func TestCancelFunc(t *testing.T) {
 
 	rawResult, err := t1.Wait()
 	assert.Equal(t, asynctask.ErrCanceled, err, "should return reason of error")
+	assert.Equal(t, asynctask.StateCanceled, t1.State(), "Task should remain in cancel state")
+	assert.Nil(t, rawResult)
 
+	// I can cancel again, and nothing changes
+	time.Sleep(time.Second * 1)
+	t1.Cancel()
+	rawResult, err = t1.Wait()
+	assert.Equal(t, asynctask.ErrCanceled, err, "should return reason of error")
 	assert.Equal(t, asynctask.StateCanceled, t1.State(), "Task should remain in cancel state")
 	assert.Nil(t, rawResult)
 
@@ -138,7 +155,7 @@ func TestConsistentResultAfterTimeout(t *testing.T) {
 func TestCompletedTask(t *testing.T) {
 	t.Parallel()
 
-	tsk := asynctask.CompletedTask
+	tsk := asynctask.NewCompletedTask()
 	assert.Equal(t, asynctask.StateCompleted, tsk.State(), "Task should in CompletedState")
 
 	// nothing should happen

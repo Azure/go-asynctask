@@ -42,15 +42,6 @@ var ErrTimeout = errors.New("timeout")
 // ErrCanceled is returned if a cancel is triggered
 var ErrCanceled = errors.New("canceled")
 
-var CompletedTask = &TaskStatus{
-	state:  StateCompleted,
-	result: nil,
-	err:    nil,
-	// nil cancelFunc and waitGroup should be protected with IsTerminalState()
-	cancelFunc: nil,
-	waitGroup:  nil,
-}
-
 // TaskStatus is a handle to the running function.
 // which you can use to wait, cancel, get the result.
 type TaskStatus struct {
@@ -111,6 +102,18 @@ func (t *TaskStatus) WaitWithTimeout(timeout time.Duration) (interface{}, error)
 	case <-time.After(timeout):
 		t.finish(StateCanceled, nil, ErrTimeout)
 		return t.result, t.err
+	}
+}
+
+// NewCompletedTask returns a Completed task, with result=nil, error=nil
+func NewCompletedTask() *TaskStatus {
+	return &TaskStatus{
+		state:  StateCompleted,
+		result: nil,
+		err:    nil,
+		// nil cancelFunc and waitGroup should be protected with IsTerminalState()
+		cancelFunc: func() {},
+		waitGroup:  nil,
 	}
 }
 
