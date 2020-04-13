@@ -135,6 +135,23 @@ func TestConsistentResultAfterTimeout(t *testing.T) {
 	assert.Nil(t, rawResult, "didn't expect resule on canceled task")
 }
 
+func TestCompletedTask(t *testing.T) {
+	t.Parallel()
+
+	tsk := asynctask.CompletedTask
+	assert.Equal(t, asynctask.StateCompleted, tsk.State(), "Task should in CompletedState")
+
+	// nothing should happen
+	tsk.Cancel()
+	assert.Equal(t, asynctask.StateCompleted, tsk.State(), "Task should still in CompletedState")
+
+	// you get nil result and nil error
+	result, err := tsk.Wait()
+	assert.Equal(t, asynctask.StateCompleted, tsk.State(), "Task should still in CompletedState")
+	assert.NoError(t, err)
+	assert.Nil(t, result)
+}
+
 func TestCrazyCase(t *testing.T) {
 	t.Parallel()
 	ctx := newTestContext(t)
