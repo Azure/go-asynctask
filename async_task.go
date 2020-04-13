@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -60,31 +61,38 @@ func (t *TaskStatus) State() State {
 // Cancel abort the task execution
 // !! only if the function provided handles context cancel.
 func (t *TaskStatus) Cancel() {
-	t.cancelFunc()
+	if !t.state.IsTerminalState() {
+		t.cancelFunc()
 
-	t.finish(StateCanceled, nil, ErrCanceled)
+		t.finish(StateCanceled, nil, ErrCanceled)
+	}
 }
 
 // Wait block current thread/routine until task finished or failed.
 func (t *TaskStatus) Wait() (interface{}, error) {
-	// skip the wait if task got canceled.
-	if !t.state.IsTerminalState() {
-		t.waitGroup.Wait()
-
-		// we create new context when starting task, now release it.
-		t.cancelFunc()
+	// return immediately if task already in terminal state.
+	if t.state.IsTerminalState() {
+		return t.result, t.err
 	}
+
+	// we create new context when starting task, now release it.
+	defer t.cancelFunc()
+
+	t.waitGroup.Wait()
 
 	return t.result, t.err
 }
 
 // WaitWithTimeout block current thread/routine until task finished or failed, or exceed the duration specified.
 func (t *TaskStatus) WaitWithTimeout(timeout time.Duration) (interface{}, error) {
-	defer t.cancelFunc()
+	// return immediately if task already in terminal state.
+	if t.state.IsTerminalState() {
+		return t.result, t.err
+	}
 
 	ch := make(chan interface{})
 	go func() {
-		t.waitGroup.Wait()
+		t.Wait()
 		close(ch)
 	}()
 
@@ -94,6 +102,18 @@ func (t *TaskStatus) WaitWithTimeout(timeout time.Duration) (interface{}, error)
 	case <-time.After(timeout):
 		t.finish(StateCanceled, nil, ErrTimeout)
 		return t.result, t.err
+	}
+}
+
+// NewCompletedTask returns a Completed task, with result=nil, error=nil
+func NewCompletedTask() *TaskStatus {
+	return &TaskStatus{
+		state:  StateCompleted,
+		result: nil,
+		err:    nil,
+		// nil cancelFunc and waitGroup should be protected with IsTerminalState()
+		cancelFunc: nil,
+		waitGroup:  nil,
 	}
 }
 
@@ -125,11 +145,18 @@ func runAndTrackTask(record *TaskStatus, task func(ctx context.Context) (interfa
 	}()
 
 	result, err := task(record)
-	if err != nil {
-		record.finish(StateFailed, result, err)
-	} else {
-		record.finish(StateCompleted, result, err)
+
+	if err == nil ||
+		// incase some team use pointer typed error (implement Error() string on a pointer type)
+		// which can break err check (but nil point assigned to error result to non-nil error)
+		// check out TestPointerErrorCase in error_test.go
+		reflect.ValueOf(err).IsNil() {
+		record.finish(StateCompleted, result, nil)
+		return
 	}
+
+	// err not nil, fail the task
+	record.finish(StateFailed, result, err)
 }
 
 func (t *TaskStatus) finish(state State, result interface{}, err error) {
