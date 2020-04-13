@@ -79,20 +79,25 @@ func (t *TaskStatus) Cancel() {
 
 // Wait block current thread/routine until task finished or failed.
 func (t *TaskStatus) Wait() (interface{}, error) {
-	// skip the wait if task got canceled.
-	if !t.state.IsTerminalState() {
-		t.waitGroup.Wait()
-
-		// we create new context when starting task, now release it.
-		t.cancelFunc()
+	// return immediately if task already in terminal state.
+	if t.state.IsTerminalState() {
+		return t.result, t.err
 	}
+
+	// we create new context when starting task, now release it.
+	defer t.cancelFunc()
+
+	t.waitGroup.Wait()
 
 	return t.result, t.err
 }
 
 // WaitWithTimeout block current thread/routine until task finished or failed, or exceed the duration specified.
 func (t *TaskStatus) WaitWithTimeout(timeout time.Duration) (interface{}, error) {
-	defer t.cancelFunc()
+	// return immediately if task already in terminal state.
+	if t.state.IsTerminalState() {
+		return t.result, t.err
+	}
 
 	ch := make(chan interface{})
 	go func() {
