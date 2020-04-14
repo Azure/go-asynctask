@@ -10,6 +10,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type structError struct{}
+
+func (pe structError) Error() string {
+	return "Error from struct type"
+}
+
 type pointerError struct{}
 
 func (pe *pointerError) Error() string {
@@ -71,6 +77,28 @@ func TestPointerErrorCase(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 		var pe *pointerError = nil
 		return "Done", pe
+	})
+
+	result, err := tsk.Wait()
+	assert.NoError(t, err)
+	assert.Equal(t, result, "Done")
+}
+
+func TestStructErrorCase(t *testing.T) {
+	t.Parallel()
+
+	// nil point of a type that implement error
+	var se structError
+	// pass this nil pointer to error interface
+	var err error = se
+	// now you get a non-nil error
+	assert.False(t, err == nil, "reason this test is needed")
+
+	ctx := newTestContext(t)
+	tsk := asynctask.Start(ctx, func(ctx context.Context) (interface{}, error) {
+		time.Sleep(100 * time.Millisecond)
+		var se structError
+		return "Done", se
 	})
 
 	result, err := tsk.Wait()

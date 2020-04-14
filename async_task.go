@@ -135,6 +135,23 @@ func Start(ctx context.Context, task AsyncFunc) *TaskStatus {
 	return record
 }
 
+// isErrorReallyError do extra error check
+//    - Nil Pointer to a Type (that implement error)
+//    - Zero Value of a Type (that implement error)
+func isErrorReallyError(err error) bool {
+	v := reflect.ValueOf(err)
+	if v.Type().Kind() == reflect.Ptr &&
+		v.IsNil() {
+		return false
+	}
+
+	if v.Type().Kind() == reflect.Struct &&
+		v.IsZero() {
+		return false
+	}
+	return true
+}
+
 func runAndTrackTask(record *TaskStatus, task func(ctx context.Context) (interface{}, error)) {
 	defer record.waitGroup.Done()
 	defer func() {
@@ -150,7 +167,7 @@ func runAndTrackTask(record *TaskStatus, task func(ctx context.Context) (interfa
 		// incase some team use pointer typed error (implement Error() string on a pointer type)
 		// which can break err check (but nil point assigned to error result to non-nil error)
 		// check out TestPointerErrorCase in error_test.go
-		reflect.ValueOf(err).IsNil() {
+		!isErrorReallyError(err) {
 		record.finish(StateCompleted, result, nil)
 		return
 	}
