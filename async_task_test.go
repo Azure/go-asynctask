@@ -61,7 +61,7 @@ func TestEasyCase(t *testing.T) {
 	result = rawResult.(int)
 	assert.Equal(t, result, 9)
 
-	assert.True(t, elapsed.Microseconds() < 2, "Second wait should take more than 2 millisecond")
+	assert.True(t, elapsed.Microseconds() < 2, "Second wait should return immediately")
 }
 
 func TestCancelFunc(t *testing.T) {
@@ -150,6 +150,15 @@ func TestConsistentResultAfterTimeout(t *testing.T) {
 	rawResult, err = t1.Wait()
 	assert.Equal(t, asynctask.ErrTimeout, err, "should return reason of error")
 	assert.Nil(t, rawResult, "didn't expect resule on canceled task")
+
+	// invoke WaitWithTimeout again,
+	start := time.Now()
+	rawResult, err = t1.WaitWithTimeout(1 * time.Second)
+	elapsed := time.Since(start)
+	assert.Equal(t, asynctask.StateCanceled, t1.State(), "t1 should remain canceled even after routine finish")
+	assert.Equal(t, asynctask.ErrTimeout, err, "should return reason of error")
+	assert.Nil(t, rawResult, "didn't expect resule on canceled task")
+	assert.True(t, elapsed.Microseconds() < 2, "Second wait should return immediately")
 }
 
 func TestCompletedTask(t *testing.T) {
