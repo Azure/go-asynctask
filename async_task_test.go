@@ -17,14 +17,14 @@ func newTestContext(t *testing.T) context.Context {
 	return context.WithValue(context.TODO(), testContextKey, t)
 }
 
-func getCountingTask(sleepDuration time.Duration) asynctask.AsyncFunc {
+func getCountingTask(countTo int, sleepInterval time.Duration) asynctask.AsyncFunc {
 	return func(ctx context.Context) (interface{}, error) {
 		t := ctx.Value(testContextKey).(*testing.T)
 
 		result := 0
-		for i := 0; i < 10; i++ {
+		for i := 0; i < countTo; i++ {
 			select {
-			case <-time.After(sleepDuration):
+			case <-time.After(sleepInterval):
 				t.Logf("  working %d", i)
 				result = i
 			case <-ctx.Done():
@@ -39,7 +39,7 @@ func getCountingTask(sleepDuration time.Duration) asynctask.AsyncFunc {
 func TestEasyCase(t *testing.T) {
 	t.Parallel()
 	ctx := newTestContext(t)
-	t1 := asynctask.Start(ctx, getCountingTask(200*time.Millisecond))
+	t1 := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
 
 	assert.Equal(t, asynctask.StateRunning, t1.State(), "Task should queued to Running")
 
@@ -67,7 +67,7 @@ func TestEasyCase(t *testing.T) {
 func TestCancelFunc(t *testing.T) {
 	t.Parallel()
 	ctx := newTestContext(t)
-	t1 := asynctask.Start(ctx, getCountingTask(200*time.Millisecond))
+	t1 := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
 
 	assert.Equal(t, asynctask.StateRunning, t1.State(), "Task should queued to Running")
 
@@ -99,8 +99,8 @@ func TestCancelFunc(t *testing.T) {
 func TestConsistentResultAfterCancel(t *testing.T) {
 	t.Parallel()
 	ctx := newTestContext(t)
-	t1 := asynctask.Start(ctx, getCountingTask(200*time.Millisecond))
-	t2 := asynctask.Start(ctx, getCountingTask(200*time.Millisecond))
+	t1 := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
+	t2 := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
 
 	assert.Equal(t, asynctask.StateRunning, t1.State(), "Task should queued to Running")
 
@@ -128,9 +128,9 @@ func TestConsistentResultAfterTimeout(t *testing.T) {
 	t.Parallel()
 	ctx := newTestContext(t)
 	// t1 wait with short time, expect a timeout
-	t1 := asynctask.Start(ctx, getCountingTask(200*time.Millisecond))
+	t1 := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
 	// t2 wait with enough time, expect to complete
-	t2 := asynctask.Start(ctx, getCountingTask(200*time.Millisecond))
+	t2 := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
 
 	assert.Equal(t, asynctask.StateRunning, t1.State(), "t1 should queued to Running")
 	assert.Equal(t, asynctask.StateRunning, t2.State(), "t2 should queued to Running")
@@ -184,7 +184,7 @@ func TestCrazyCase(t *testing.T) {
 	numOfTasks := 10000
 	tasks := map[int]*asynctask.TaskStatus{}
 	for i := 0; i < numOfTasks; i++ {
-		tasks[i] = asynctask.Start(ctx, getCountingTask(200*time.Millisecond))
+		tasks[i] = asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
 	}
 
 	time.Sleep(200 * time.Millisecond)
