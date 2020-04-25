@@ -90,6 +90,6 @@ func TestWaitAllCanceled(t *testing.T) {
 	elapsed := time.Since(start)
 	assert.Error(t, err)
 	assert.True(t, errors.Is(err, context.Canceled))
-	// should only finish after longest task.
+	// should return before first task
 	assert.True(t, elapsed < 10*2*time.Millisecond)
 }
