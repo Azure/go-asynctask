@@ -1,6 +1,8 @@
 package asynctask_test
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -68,4 +70,26 @@ func TestWaitAllErrorCase(t *testing.T) {
 	// since we pass FailFast, countingTsk and panicTsk should be still running
 	assert.Equal(t, asynctask.StateCompleted, countingTskState, "countingTask should finished")
 	assert.Equal(t, asynctask.StateFailed, panicTskState, "panic task should failed")
+}
+
+func TestWaitAllCanceled(t *testing.T) {
+	t.Parallel()
+	ctx := newTestContext(t)
+	countingTsk1 := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
+	countingTsk2 := asynctask.Start(ctx, getCountingTask(10, 20*time.Millisecond))
+	countingTsk3 := asynctask.Start(ctx, getCountingTask(10, 2*time.Millisecond))
+	completedTsk := asynctask.NewCompletedTask()
+
+	ctx, cancelFunc := context.WithCancel(ctx)
+	start := time.Now()
+	go func() {
+		time.Sleep(5 * time.Millisecond)
+		cancelFunc()
+	}()
+	err := asynctask.WaitAll(ctx, &asynctask.WaitAllOptions{FailFast: true}, countingTsk1, countingTsk2, countingTsk3, completedTsk)
+	elapsed := time.Since(start)
+	assert.Error(t, err)
+	assert.True(t, errors.Is(err, context.Canceled))
+	// should only finish after longest task.
+	assert.True(t, elapsed < 10*2*time.Millisecond)
 }
