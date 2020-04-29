@@ -69,7 +69,7 @@ func (t *TaskStatus) Cancel() {
 }
 
 // Wait block current thread/routine until task finished or failed.
-func (t *TaskStatus) Wait() (interface{}, error) {
+func (t *TaskStatus) Wait(ctx context.Context) (interface{}, error) {
 	// return immediately if task already in terminal state.
 	if t.state.IsTerminalState() {
 		return t.result, t.err
@@ -78,31 +78,32 @@ func (t *TaskStatus) Wait() (interface{}, error) {
 	// we create new context when starting task, now release it.
 	defer t.cancelFunc()
 
-	t.waitGroup.Wait()
+	ch := make(chan interface{})
+	go func() {
+		t.waitGroup.Wait()
+		close(ch)
+	}()
 
-	return t.result, t.err
+	select {
+	case <-ch:
+		return t.result, t.err
+	case <-ctx.Done():
+		t.finish(StateCanceled, nil, ErrTimeout)
+		return t.result, t.err
+	}
 }
 
 // WaitWithTimeout block current thread/routine until task finished or failed, or exceed the duration specified.
-func (t *TaskStatus) WaitWithTimeout(timeout time.Duration) (interface{}, error) {
+func (t *TaskStatus) WaitWithTimeout(ctx context.Context, timeout time.Duration) (interface{}, error) {
 	// return immediately if task already in terminal state.
 	if t.state.IsTerminalState() {
 		return t.result, t.err
 	}
 
-	ch := make(chan interface{})
-	go func() {
-		t.Wait()
-		close(ch)
-	}()
+	ctx, cancelFunc := context.WithTimeout(ctx, timeout)
+	defer cancelFunc()
 
-	select {
-	case _ = <-ch:
-		return t.result, t.err
-	case <-time.After(timeout):
-		t.finish(StateCanceled, nil, ErrTimeout)
-		return t.result, t.err
-	}
+	return t.Wait(ctx)
 }
 
 // NewCompletedTask returns a Completed task, with result=nil, error=nil
