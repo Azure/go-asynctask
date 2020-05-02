@@ -45,7 +45,6 @@ var ErrCanceled = errors.New("canceled")
 // TaskStatus is a handle to the running function.
 // which you can use to wait, cancel, get the result.
 type TaskStatus struct {
-	context.Context
 	state      State
 	result     interface{}
 	err        error
@@ -124,14 +123,13 @@ func Start(ctx context.Context, task AsyncFunc) *TaskStatus {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	record := &TaskStatus{
-		Context:    ctx,
 		state:      StateRunning,
 		result:     nil,
 		cancelFunc: cancel,
 		waitGroup:  wg,
 	}
 
-	go runAndTrackTask(record, task)
+	go runAndTrackTask(ctx, record, task)
 
 	return record
 }
@@ -153,7 +151,7 @@ func isErrorReallyError(err error) bool {
 	return true
 }
 
-func runAndTrackTask(record *TaskStatus, task func(ctx context.Context) (interface{}, error)) {
+func runAndTrackTask(ctx context.Context, record *TaskStatus, task func(ctx context.Context) (interface{}, error)) {
 	defer record.waitGroup.Done()
 	defer func() {
 		if r := recover(); r != nil {
@@ -162,7 +160,7 @@ func runAndTrackTask(record *TaskStatus, task func(ctx context.Context) (interfa
 		}
 	}()
 
-	result, err := task(record)
+	result, err := task(ctx)
 
 	if err == nil ||
 		// incase some team use pointer typed error (implement Error() string on a pointer type)
