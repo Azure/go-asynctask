@@ -72,9 +72,8 @@ func (t *TaskStatus) Cancel() {
 }
 
 // Wait block current thread/routine until task finished or failed.
-// !!! we have first context to start asyncTask, second context to wait asyncTask.
-// first context done will timeout and possible stop the asyncTask.
-// second context done will only timeout the Wait, it won't timeout or stop the running task.
+// context passed in can terminate the wait, through context cancellation
+// but won't terminate the task (unless it's same context)
 func (t *TaskStatus) Wait(ctx context.Context) (interface{}, error) {
 	// return immediately if task already in terminal state.
 	if t.state.IsTerminalState() {
@@ -96,6 +95,7 @@ func (t *TaskStatus) Wait(ctx context.Context) (interface{}, error) {
 }
 
 // WaitWithTimeout block current thread/routine until task finished or failed, or exceed the duration specified.
+// timeout only stop waiting, taks will remain running.
 func (t *TaskStatus) WaitWithTimeout(ctx context.Context, timeout time.Duration) (interface{}, error) {
 	// return immediately if task already in terminal state.
 	if t.state.IsTerminalState() {
@@ -121,6 +121,7 @@ func NewCompletedTask() *TaskStatus {
 }
 
 // Start run a async function and returns you a handle which you can Wait or Cancel.
+// context passed in may impact task lifetime (from context cancellation)
 func Start(ctx context.Context, task AsyncFunc) *TaskStatus {
 	ctx, cancel := context.WithCancel(ctx)
 	wg := &sync.WaitGroup{}
