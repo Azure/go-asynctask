@@ -39,6 +39,9 @@ var ErrPanic = errors.New("panic")
 // ErrTimeout is returned if task didn't finish within specified time duration.
 var ErrTimeout = errors.New("timeout")
 
+// ErrWaitTimeout is returned on Wait or WaitWithTimeout.
+var ErrWaitTimeout = errors.New("wait timeout")
+
 // ErrCanceled is returned if a cancel is triggered
 var ErrCanceled = errors.New("canceled")
 
@@ -69,14 +72,14 @@ func (t *TaskStatus) Cancel() {
 }
 
 // Wait block current thread/routine until task finished or failed.
+// !!! we have first context to start asyncTask, second context to wait asyncTask.
+// first context done will timeout and possible stop the asyncTask.
+// second context done will only timeout the Wait, it won't timeout or stop the running task.
 func (t *TaskStatus) Wait(ctx context.Context) (interface{}, error) {
 	// return immediately if task already in terminal state.
 	if t.state.IsTerminalState() {
 		return t.result, t.err
 	}
-
-	// we create new context when starting task, now release it.
-	defer t.cancelFunc()
 
 	ch := make(chan interface{})
 	go func() {
@@ -88,8 +91,7 @@ func (t *TaskStatus) Wait(ctx context.Context) (interface{}, error) {
 	case <-ch:
 		return t.result, t.err
 	case <-ctx.Done():
-		t.finish(StateCanceled, nil, ErrTimeout)
-		return t.result, t.err
+		return nil, ErrWaitTimeout
 	}
 }
 
