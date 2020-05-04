@@ -36,9 +36,6 @@ type AsyncFunc func(context.Context) (interface{}, error)
 // ErrPanic is returned if panic cought in the task
 var ErrPanic = errors.New("panic")
 
-// ErrTimeout is returned if task didn't finish within specified time duration.
-var ErrTimeout = errors.New("timeout")
-
 // ErrCanceled is returned if a cancel is triggered
 var ErrCanceled = errors.New("canceled")
 
