@@ -48,6 +48,11 @@ func TestTimeoutCase(t *testing.T) {
 	rawResult, err := tsk.WaitWithTimeout(ctx, 2*time.Second)
 	assert.NoError(t, err)
 	assert.Equal(t, 9, rawResult)
+
+	// any following Wait should complete immediately
+	rawResult, err = tsk.WaitWithTimeout(ctx, 2*time.Nanosecond)
+	assert.NoError(t, err)
+	assert.Equal(t, 9, rawResult)
 }
 
 func TestPanicCase(t *testing.T) {
