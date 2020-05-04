@@ -39,9 +39,6 @@ var ErrPanic = errors.New("panic")
 // ErrTimeout is returned if task didn't finish within specified time duration.
 var ErrTimeout = errors.New("timeout")
 
-// ErrWaitTimeout is returned on Wait or WaitWithTimeout.
-var ErrWaitTimeout = errors.New("wait timeout")
-
 // ErrCanceled is returned if a cancel is triggered
 var ErrCanceled = errors.New("canceled")
 
@@ -90,7 +87,7 @@ func (t *TaskStatus) Wait(ctx context.Context) (interface{}, error) {
 	case <-ch:
 		return t.result, t.err
 	case <-ctx.Done():
-		return nil, ErrWaitTimeout
+		return nil, ctx.Err()
 	}
 }
 
