@@ -70,7 +70,6 @@ func TestErrorCase(t *testing.T) {
 	_, err := tsk.WaitWithTimeout(ctx, 300*time.Millisecond)
 	assert.Error(t, err)
 	assert.False(t, errors.Is(err, asynctask.ErrPanic), "not expecting ErrPanic")
-	assert.False(t, errors.Is(err, asynctask.ErrTimeout), "not expecting ErrTimeout")
 	assert.False(t, errors.Is(err, context.DeadlineExceeded), "not expecting DeadlineExceeded")
 	assert.Equal(t, "not found", err.Error())
 }
