@@ -36,16 +36,12 @@ type AsyncFunc func(context.Context) (interface{}, error)
 // ErrPanic is returned if panic cought in the task
 var ErrPanic = errors.New("panic")
 
-// ErrTimeout is returned if task didn't finish within specified time duration.
-var ErrTimeout = errors.New("timeout")
-
 // ErrCanceled is returned if a cancel is triggered
 var ErrCanceled = errors.New("canceled")
 
 // TaskStatus is a handle to the running function.
 // which you can use to wait, cancel, get the result.
 type TaskStatus struct {
-	context.Context
 	state      State
 	result     interface{}
 	err        error
@@ -69,14 +65,13 @@ func (t *TaskStatus) Cancel() {
 }
 
 // Wait block current thread/routine until task finished or failed.
+// context passed in can terminate the wait, through context cancellation
+// but won't terminate the task (unless it's same context)
 func (t *TaskStatus) Wait(ctx context.Context) (interface{}, error) {
 	// return immediately if task already in terminal state.
 	if t.state.IsTerminalState() {
 		return t.result, t.err
 	}
-
-	// we create new context when starting task, now release it.
-	defer t.cancelFunc()
 
 	ch := make(chan interface{})
 	go func() {
@@ -88,12 +83,12 @@ func (t *TaskStatus) Wait(ctx context.Context) (interface{}, error) {
 	case <-ch:
 		return t.result, t.err
 	case <-ctx.Done():
-		t.finish(StateCanceled, nil, ErrTimeout)
-		return t.result, t.err
+		return nil, ctx.Err()
 	}
 }
 
 // WaitWithTimeout block current thread/routine until task finished or failed, or exceed the duration specified.
+// timeout only stop waiting, taks will remain running.
 func (t *TaskStatus) WaitWithTimeout(ctx context.Context, timeout time.Duration) (interface{}, error) {
 	// return immediately if task already in terminal state.
 	if t.state.IsTerminalState() {
@@ -119,19 +114,19 @@ func NewCompletedTask() *TaskStatus {
 }
 
 // Start run a async function and returns you a handle which you can Wait or Cancel.
+// context passed in may impact task lifetime (from context cancellation)
 func Start(ctx context.Context, task AsyncFunc) *TaskStatus {
 	ctx, cancel := context.WithCancel(ctx)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	record := &TaskStatus{
-		Context:    ctx,
 		state:      StateRunning,
 		result:     nil,
 		cancelFunc: cancel,
 		waitGroup:  wg,
 	}
 
-	go runAndTrackTask(record, task)
+	go runAndTrackTask(ctx, record, task)
 
 	return record
 }
@@ -153,7 +148,7 @@ func isErrorReallyError(err error) bool {
 	return true
 }
 
-func runAndTrackTask(record *TaskStatus, task func(ctx context.Context) (interface{}, error)) {
+func runAndTrackTask(ctx context.Context, record *TaskStatus, task func(ctx context.Context) (interface{}, error)) {
 	defer record.waitGroup.Done()
 	defer func() {
 		if r := recover(); r != nil {
@@ -162,7 +157,7 @@ func runAndTrackTask(record *TaskStatus, task func(ctx context.Context) (interfa
 		}
 	}()
 
-	result, err := task(record)
+	result, err := task(ctx)
 
 	if err == nil ||
 		// incase some team use pointer typed error (implement Error() string on a pointer type)

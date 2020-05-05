@@ -41,7 +41,18 @@ func TestTimeoutCase(t *testing.T) {
 	ctx := newTestContext(t)
 	tsk := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
 	_, err := tsk.WaitWithTimeout(ctx, 300*time.Millisecond)
-	assert.True(t, errors.Is(err, asynctask.ErrTimeout), "expecting ErrTimeout")
+	assert.True(t, errors.Is(err, context.DeadlineExceeded), "expecting DeadlineExceeded")
+
+	// the last Wait error should affect running task
+	// I can continue wait with longer time
+	rawResult, err := tsk.WaitWithTimeout(ctx, 2*time.Second)
+	assert.NoError(t, err)
+	assert.Equal(t, 9, rawResult)
+
+	// any following Wait should complete immediately
+	rawResult, err = tsk.WaitWithTimeout(ctx, 2*time.Nanosecond)
+	assert.NoError(t, err)
+	assert.Equal(t, 9, rawResult)
 }
 
 func TestPanicCase(t *testing.T) {
@@ -59,8 +70,8 @@ func TestErrorCase(t *testing.T) {
 	_, err := tsk.WaitWithTimeout(ctx, 300*time.Millisecond)
 	assert.Error(t, err)
 	assert.False(t, errors.Is(err, asynctask.ErrPanic), "not expecting ErrPanic")
-	assert.False(t, errors.Is(err, asynctask.ErrTimeout), "not expecting ErrTimeout")
-	assert.Equal(t, "dummy error", err.Error())
+	assert.False(t, errors.Is(err, context.DeadlineExceeded), "not expecting DeadlineExceeded")
+	assert.Equal(t, "not found", err.Error())
 }
 
 func TestPointerErrorCase(t *testing.T) {
