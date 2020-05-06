@@ -144,7 +144,7 @@ func TestCompletedTask(t *testing.T) {
 func TestCrazyCase(t *testing.T) {
 	t.Parallel()
 	ctx := newTestContext(t)
-	numOfTasks := 10000
+	numOfTasks := 8000 // if you have --race switch on: limit on 8128 simultaneously alive goroutines is exceeded, dying
 	tasks := map[int]*asynctask.TaskStatus{}
 	for i := 0; i < numOfTasks; i++ {
 		tasks[i] = asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))

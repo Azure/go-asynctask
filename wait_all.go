@@ -3,6 +3,7 @@ package asynctask
 import (
 	"context"
 	"fmt"
+	"sync"
 )
 
 // WaitAllOptions defines options for WaitAll function
@@ -12,20 +13,19 @@ type WaitAllOptions struct {
 }
 
 // WaitAll block current thread til all task finished.
-// it return immediately after receive first error.
+// first error from any tasks passed in will be returned.
 func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...*TaskStatus) error {
 	errorCh := make(chan error)
 	errorChClosed := false
-	defer func() {
-		errorChClosed = true
-		close(errorCh)
-	}()
-
+	defer close(errorCh)
+	mutex := sync.Mutex{}
 	runningTasks := 0
-	for _, tsk := range tasks {
 
+	for _, tsk := range tasks {
 		go func(tsk *TaskStatus) {
-			_, err := tsk.Wait()
+			_, err := tsk.Wait(ctx)
+			mutex.Lock()
+			defer mutex.Unlock()
 			if !errorChClosed {
 				errorCh <- err
 			}
@@ -38,20 +38,29 @@ func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...*TaskStatus)
 		select {
 		case err := <-errorCh:
 			runningTasks--
-			if err != nil && isErrorReallyError(err) {
+			if err != nil {
 				// return immediately after receive first error.
 				if options.FailFast {
+					mutex.Lock()
+					defer mutex.Unlock()
+					errorChClosed = true
 					return err
 				}
 
 				errList = append(errList, err)
 			}
 		case <-ctx.Done():
+			mutex.Lock()
+			defer mutex.Unlock()
+			errorChClosed = true
 			return fmt.Errorf("WaitAll context canceled. %w", context.Canceled)
 		}
 
 		// are we finished yet?
 		if runningTasks == 0 {
+			mutex.Lock()
+			defer mutex.Unlock()
+			errorChClosed = true
 			break
 		}
 	}
