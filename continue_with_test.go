@@ -51,3 +51,27 @@ func TestContinueWith(t *testing.T) {
 	assert.Equal(t, asynctask.StateCompleted, t3.State(), "Task should complete with no error")
 	assert.Equal(t, result, 22)
 }
+
+func TestContinueWithFailureCase(t *testing.T) {
+	t.Parallel()
+	ctx := newTestContext(t)
+	t1 := asynctask.Start(ctx, getErrorTask("devide by 0", 10*time.Millisecond))
+	t2 := t1.ContinueWith(ctx, func(fCtx context.Context, input interface{}) (interface{}, error) {
+		fromPrevTsk := input.(int)
+		return getAdvancedCountingTask(fromPrevTsk, 10, 20*time.Millisecond)(fCtx)
+	})
+	t3 := t1.ContinueWith(ctx, func(fCtx context.Context, input interface{}) (interface{}, error) {
+		fromPrevTsk := input.(int)
+		return getAdvancedCountingTask(fromPrevTsk, 12, 20*time.Millisecond)(fCtx)
+	})
+
+	_, err := t2.Wait(ctx)
+	assert.Error(t, err)
+	assert.Equal(t, asynctask.StateFailed, t2.State(), "Task2 should fail since preceeding task failed")
+	assert.Equal(t, "devide by 0", err.Error())
+
+	_, err = t3.Wait(ctx)
+	assert.Error(t, err)
+	assert.Equal(t, asynctask.StateFailed, t3.State(), "Task3 should fail since preceeding task failed")
+	assert.Equal(t, "devide by 0", err.Error())
+}
