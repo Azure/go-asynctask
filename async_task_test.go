@@ -17,6 +17,10 @@ func newTestContext(t *testing.T) context.Context {
 	return context.WithValue(context.TODO(), testContextKey, t)
 }
 
+func newTestContextWithTimeout(t *testing.T, timeout time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithValue(context.TODO(), testContextKey, t), timeout)
+}
+
 func getCountingTask(countTo int, sleepInterval time.Duration) asynctask.AsyncFunc {
 	return func(ctx context.Context) (interface{}, error) {
 		t := ctx.Value(testContextKey).(*testing.T)
