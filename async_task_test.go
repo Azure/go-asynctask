@@ -66,7 +66,7 @@ func TestEasyCase(t *testing.T) {
 	result = rawResult.(int)
 	assert.Equal(t, result, 9)
 
-	assert.True(t, elapsed.Microseconds() < 2, "Second wait should return immediately")
+	assert.True(t, elapsed.Microseconds() < 3, "Second wait should return immediately")
 }
 
 func TestCancelFunc(t *testing.T) {

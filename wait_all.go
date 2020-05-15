@@ -15,7 +15,7 @@ type WaitAllOptions struct {
 // WaitAll block current thread til all task finished.
 // first error from any tasks passed in will be returned.
 func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...*TaskStatus) error {
-	errorCh := make(chan error)
+	errorCh := make(chan error, len(tasks))
 	errorChClosed := false
 	defer close(errorCh)
 	mutex := sync.Mutex{}
@@ -24,6 +24,12 @@ func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...*TaskStatus)
 	for _, tsk := range tasks {
 		go func(tsk *TaskStatus) {
 			_, err := tsk.Wait(ctx)
+
+			// why mutex?
+			// if all tasks start using same context (unittest)
+			// and that context got canceled, all task fail at same time.
+			// first one went in and close the channel, while another one already went through gate check.
+			// raise a panic with send to closed channel.
 			mutex.Lock()
 			defer mutex.Unlock()
 			if !errorChClosed {
@@ -41,23 +47,20 @@ func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...*TaskStatus)
 			if err != nil {
 				// return immediately after receive first error.
 				if options.FailFast {
-					mutex.Lock()
-					defer mutex.Unlock()
-					errorChClosed = true
+					closeChannel(errorCh, &mutex, &errorChClosed)
 					return err
 				}
 
 				errList = append(errList, err)
 			}
 		case <-ctx.Done():
-			mutex.Lock()
-			defer mutex.Unlock()
-			errorChClosed = true
-			return fmt.Errorf("WaitAll context canceled. %w", context.Canceled)
+			closeChannel(errorCh, &mutex, &errorChClosed)
+			return fmt.Errorf("WaitAll context canceled: %w", ctx.Err())
 		}
 
 		// are we finished yet?
 		if runningTasks == 0 {
+			closeChannel(errorCh, &mutex, &errorChClosed)
 			mutex.Lock()
 			defer mutex.Unlock()
 			errorChClosed = true
@@ -74,4 +77,10 @@ func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...*TaskStatus)
 
 	// no error at all.
 	return nil
+}
+
+func closeChannel(errChan chan<- error, mutex *sync.Mutex, closed *bool) {
+	mutex.Lock()
+	defer mutex.Unlock()
+	*closed = true
 }

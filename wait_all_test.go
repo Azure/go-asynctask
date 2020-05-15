@@ -95,7 +95,8 @@ func TestWaitAllCanceled(t *testing.T) {
 	err := asynctask.WaitAll(waitCtx, &asynctask.WaitAllOptions{FailFast: true}, countingTsk1, countingTsk2, countingTsk3, completedTsk)
 	elapsed := time.Since(start)
 	assert.Error(t, err)
-	assert.True(t, errors.Is(err, context.Canceled))
+	t.Log(err.Error())
+	assert.True(t, errors.Is(err, context.DeadlineExceeded))
 	// should return before first task
 	assert.True(t, elapsed < 10*2*time.Millisecond)
 }
