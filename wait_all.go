@@ -15,18 +15,18 @@ type WaitAllOptions struct {
 // WaitAll block current thread til all task finished.
 // first error from any tasks passed in will be returned.
 func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...*TaskStatus) error {
-	errorCh := make(chan error, len(tasks))
+	tasksCount := len(tasks)
+	errorCh := make(chan error, tasksCount)
 	errorChClosed := false
 	defer close(errorCh)
 	mutex := sync.Mutex{}
-	runningTasks := 0
 
 	for _, tsk := range tasks {
 		go func(tsk *TaskStatus) {
 			_, err := tsk.Wait(ctx)
 
 			// why mutex?
-			// if all tasks start using same context (unittest)
+			// if all tasks start using same context (unittest is good example)
 			// and that context got canceled, all task fail at same time.
 			// first one went in and close the channel, while another one already went through gate check.
 			// raise a panic with send to closed channel.
@@ -36,9 +36,9 @@ func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...*TaskStatus)
 				errorCh <- err
 			}
 		}(tsk)
-		runningTasks++
 	}
 
+	runningTasks := tasksCount
 	var errList []error
 	for {
 		select {
