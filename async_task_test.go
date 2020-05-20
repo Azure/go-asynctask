@@ -17,14 +17,18 @@ func newTestContext(t *testing.T) context.Context {
 	return context.WithValue(context.TODO(), testContextKey, t)
 }
 
-func getCountingTask(sleepDuration time.Duration) asynctask.AsyncFunc {
+func newTestContextWithTimeout(t *testing.T, timeout time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithValue(context.TODO(), testContextKey, t), timeout)
+}
+
+func getCountingTask(countTo int, sleepInterval time.Duration) asynctask.AsyncFunc {
 	return func(ctx context.Context) (interface{}, error) {
 		t := ctx.Value(testContextKey).(*testing.T)
 
 		result := 0
-		for i := 0; i < 10; i++ {
+		for i := 0; i < countTo; i++ {
 			select {
-			case <-time.After(sleepDuration):
+			case <-time.After(sleepInterval):
 				t.Logf("  working %d", i)
 				result = i
 			case <-ctx.Done():
@@ -38,9 +42,10 @@ func getCountingTask(sleepDuration time.Duration) asynctask.AsyncFunc {
 
 func TestEasyCase(t *testing.T) {
 	t.Parallel()
-	ctx := newTestContext(t)
-	t1 := asynctask.Start(ctx, getCountingTask(200*time.Millisecond))
+	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
+	defer cancelFunc()
 
+	t1 := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
 	assert.Equal(t, asynctask.StateRunning, t1.State(), "Task should queued to Running")
 
 	rawResult, err := t1.Wait(ctx)
@@ -61,14 +66,15 @@ func TestEasyCase(t *testing.T) {
 	result = rawResult.(int)
 	assert.Equal(t, result, 9)
 
-	assert.True(t, elapsed.Microseconds() < 2, "Second wait should return immediately")
+	assert.True(t, elapsed.Microseconds() < 3, "Second wait should return immediately")
 }
 
 func TestCancelFunc(t *testing.T) {
 	t.Parallel()
-	ctx := newTestContext(t)
-	t1 := asynctask.Start(ctx, getCountingTask(200*time.Millisecond))
+	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
+	defer cancelFunc()
 
+	t1 := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
 	assert.Equal(t, asynctask.StateRunning, t1.State(), "Task should queued to Running")
 
 	time.Sleep(time.Second * 1)
@@ -98,10 +104,11 @@ func TestCancelFunc(t *testing.T) {
 
 func TestConsistentResultAfterCancel(t *testing.T) {
 	t.Parallel()
-	ctx := newTestContext(t)
-	t1 := asynctask.Start(ctx, getCountingTask(200*time.Millisecond))
-	t2 := asynctask.Start(ctx, getCountingTask(200*time.Millisecond))
+	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
+	defer cancelFunc()
 
+	t1 := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
+	t2 := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
 	assert.Equal(t, asynctask.StateRunning, t1.State(), "Task should queued to Running")
 
 	time.Sleep(time.Second * 1)
@@ -126,6 +133,8 @@ func TestConsistentResultAfterCancel(t *testing.T) {
 
 func TestCompletedTask(t *testing.T) {
 	t.Parallel()
+	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
+	defer cancelFunc()
 
 	tsk := asynctask.NewCompletedTask()
 	assert.Equal(t, asynctask.StateCompleted, tsk.State(), "Task should in CompletedState")
@@ -135,7 +144,7 @@ func TestCompletedTask(t *testing.T) {
 	assert.Equal(t, asynctask.StateCompleted, tsk.State(), "Task should still in CompletedState")
 
 	// you get nil result and nil error
-	result, err := tsk.Wait(context.TODO())
+	result, err := tsk.Wait(ctx)
 	assert.Equal(t, asynctask.StateCompleted, tsk.State(), "Task should still in CompletedState")
 	assert.NoError(t, err)
 	assert.Nil(t, result)
@@ -143,11 +152,13 @@ func TestCompletedTask(t *testing.T) {
 
 func TestCrazyCase(t *testing.T) {
 	t.Parallel()
-	ctx := newTestContext(t)
-	numOfTasks := 10000
+	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
+	defer cancelFunc()
+
+	numOfTasks := 8000 // if you have --race switch on: limit on 8128 simultaneously alive goroutines is exceeded, dying
 	tasks := map[int]*asynctask.TaskStatus{}
 	for i := 0; i < numOfTasks; i++ {
-		tasks[i] = asynctask.Start(ctx, getCountingTask(200*time.Millisecond))
+		tasks[i] = asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
 	}
 
 	time.Sleep(200 * time.Millisecond)
