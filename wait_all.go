@@ -61,9 +61,6 @@ func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...*TaskStatus)
 		// are we finished yet?
 		if runningTasks == 0 {
 			closeChannel(errorCh, &mutex, &errorChClosed)
-			mutex.Lock()
-			defer mutex.Unlock()
-			errorChClosed = true
 			break
 		}
 	}
