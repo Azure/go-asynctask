@@ -15,24 +15,19 @@ type WaitAllOptions struct {
 // WaitAll block current thread til all task finished.
 // first error from any tasks passed in will be returned.
 func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...*TaskStatus) error {
-	errorCh := make(chan error)
-	errorChClosed := false
-	defer close(errorCh)
+	tasksCount := len(tasks)
+
 	mutex := sync.Mutex{}
-	runningTasks := 0
+	errorChClosed := false
+	errorCh := make(chan error, tasksCount)
+	// hard close channel
+	defer close(errorCh)
 
 	for _, tsk := range tasks {
-		go func(tsk *TaskStatus) {
-			_, err := tsk.Wait(ctx)
-			mutex.Lock()
-			defer mutex.Unlock()
-			if !errorChClosed {
-				errorCh <- err
-			}
-		}(tsk)
-		runningTasks++
+		go waitOne(ctx, tsk, errorCh, &errorChClosed, &mutex)
 	}
 
+	runningTasks := tasksCount
 	var errList []error
 	for {
 		select {
@@ -41,26 +36,20 @@ func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...*TaskStatus)
 			if err != nil {
 				// return immediately after receive first error.
 				if options.FailFast {
-					mutex.Lock()
-					defer mutex.Unlock()
-					errorChClosed = true
+					softCloseChannel(&mutex, &errorChClosed)
 					return err
 				}
 
 				errList = append(errList, err)
 			}
 		case <-ctx.Done():
-			mutex.Lock()
-			defer mutex.Unlock()
-			errorChClosed = true
-			return fmt.Errorf("WaitAll context canceled. %w", context.Canceled)
+			softCloseChannel(&mutex, &errorChClosed)
+			return fmt.Errorf("WaitAll context canceled: %w", ctx.Err())
 		}
 
 		// are we finished yet?
 		if runningTasks == 0 {
-			mutex.Lock()
-			defer mutex.Unlock()
-			errorChClosed = true
+			softCloseChannel(&mutex, &errorChClosed)
 			break
 		}
 	}
@@ -74,4 +63,25 @@ func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...*TaskStatus)
 
 	// no error at all.
 	return nil
+}
+
+func waitOne(ctx context.Context, tsk *TaskStatus, errorCh chan<- error, errorChClosed *bool, mutex *sync.Mutex) {
+	_, err := tsk.Wait(ctx)
+
+	// why mutex?
+	// if all tasks start using same context (unittest is good example)
+	// and that context got canceled, all task fail at same time.
+	// first one went in and close the channel, while another one already went through gate check.
+	// raise a panic with send to closed channel.
+	mutex.Lock()
+	defer mutex.Unlock()
+	if !*errorChClosed {
+		errorCh <- err
+	}
+}
+
+func softCloseChannel(mutex *sync.Mutex, closed *bool) {
+	mutex.Lock()
+	defer mutex.Unlock()
+	*closed = true
 }

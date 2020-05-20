@@ -38,7 +38,9 @@ func getErrorTask(errorString string, sleepDuration time.Duration) asynctask.Asy
 
 func TestTimeoutCase(t *testing.T) {
 	t.Parallel()
-	ctx := newTestContext(t)
+	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
+	defer cancelFunc()
+
 	tsk := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
 	_, err := tsk.WaitWithTimeout(ctx, 300*time.Millisecond)
 	assert.True(t, errors.Is(err, context.DeadlineExceeded), "expecting DeadlineExceeded")
@@ -57,7 +59,9 @@ func TestTimeoutCase(t *testing.T) {
 
 func TestPanicCase(t *testing.T) {
 	t.Parallel()
-	ctx := newTestContext(t)
+	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
+	defer cancelFunc()
+
 	tsk := asynctask.Start(ctx, getPanicTask(200*time.Millisecond))
 	_, err := tsk.WaitWithTimeout(ctx, 300*time.Millisecond)
 	assert.True(t, errors.Is(err, asynctask.ErrPanic), "expecting ErrPanic")
@@ -65,7 +69,9 @@ func TestPanicCase(t *testing.T) {
 
 func TestErrorCase(t *testing.T) {
 	t.Parallel()
-	ctx := newTestContext(t)
+	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
+	defer cancelFunc()
+
 	tsk := asynctask.Start(ctx, getErrorTask("dummy error", 200*time.Millisecond))
 	_, err := tsk.WaitWithTimeout(ctx, 300*time.Millisecond)
 	assert.Error(t, err)
@@ -76,6 +82,8 @@ func TestErrorCase(t *testing.T) {
 
 func TestPointerErrorCase(t *testing.T) {
 	t.Parallel()
+	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
+	defer cancelFunc()
 
 	// nil point of a type that implement error
 	var pe *pointerError = nil
@@ -84,7 +92,6 @@ func TestPointerErrorCase(t *testing.T) {
 	// now you get a non-nil error
 	assert.False(t, err == nil, "reason this test is needed")
 
-	ctx := newTestContext(t)
 	tsk := asynctask.Start(ctx, func(ctx context.Context) (interface{}, error) {
 		time.Sleep(100 * time.Millisecond)
 		var pe *pointerError = nil
@@ -98,6 +105,8 @@ func TestPointerErrorCase(t *testing.T) {
 
 func TestStructErrorCase(t *testing.T) {
 	t.Parallel()
+	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
+	defer cancelFunc()
 
 	// nil point of a type that implement error
 	var se structError
@@ -106,7 +115,6 @@ func TestStructErrorCase(t *testing.T) {
 	// now you get a non-nil error
 	assert.False(t, err == nil, "reason this test is needed")
 
-	ctx := newTestContext(t)
 	tsk := asynctask.Start(ctx, func(ctx context.Context) (interface{}, error) {
 		time.Sleep(100 * time.Millisecond)
 		var se structError
