@@ -6,7 +6,7 @@ import "context"
 type ContinueFunc func(context.Context, interface{}) (interface{}, error)
 
 // ContinueWith start the function when current task is done.
-// result from previous task will be passed in.
+// result from previous task will be passed in, if no error.
 func (tsk *TaskStatus) ContinueWith(ctx context.Context, next ContinueFunc) *TaskStatus {
 	return Start(ctx, func(fCtx context.Context) (interface{}, error) {
 		result, err := tsk.Wait(fCtx)

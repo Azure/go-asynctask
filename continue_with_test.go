@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func getAdvancedCountingTask(countFron, step int, sleepInterval time.Duration) asynctask.AsyncFunc {
+func getAdvancedCountingTask(countFrom, step int, sleepInterval time.Duration) asynctask.AsyncFunc {
 	return func(ctx context.Context) (interface{}, error) {
 		t := ctx.Value(testContextKey).(*testing.T)
 
-		result := countFron
+		result := countFrom
 		for i := 0; i < step; i++ {
 			select {
 			case <-time.After(sleepInterval):
