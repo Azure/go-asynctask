@@ -2,10 +2,13 @@ package asynctask
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
-	"runtime/debug"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
 )
@@ -148,11 +151,69 @@ func isErrorReallyError(err error) bool {
 	return true
 }
 
+func identifypanic() (runtime.Frame, string) {
+
+	panicFrame := runtime.Frame{
+		Function: "UNKNOWN",
+		File:     "UNKNOWN",
+	}
+	pc := make([]uintptr, 16)               //how deep should we look? 16 a deep enough stack?
+	n := runtime.Callers(2, pc)             // 3 == runtime.Callers, IdentifyPanic.
+	frames := runtime.CallersFrames(pc[:n]) // pass only valid pcs to runtime.CallersFrames
+
+	stackhash := md5.New()
+	foundPanic := false
+	passedPanic := false
+	for {
+		frame, more := frames.Next()
+
+		//ignore runtime at beginning and end of stack
+		if strings.HasPrefix(frame.Function, "runtime.") {
+			passedPanic = true
+			continue
+		}
+
+		//could be other non runtime funcions before panic
+		if !passedPanic {
+			continue
+		}
+
+		if !foundPanic {
+			//frame that raised the panic will be first after runtime
+			//but the number of runtime lines can vary so can't just
+			panicFrame = frame
+			foundPanic = true
+		}
+		_, _ = stackhash.Write([]byte(fmt.Sprintf("%s%d\n", frame.Function, frame.Line)))
+
+		if !more {
+			break
+		}
+	}
+	return panicFrame, fmt.Sprintf("%x", stackhash.Sum(nil))
+}
+
+type panicErr struct {
+	frame     runtime.Frame
+	stackhash string
+	recovery  interface{}
+}
+
+func (pe *panicErr) Error() string {
+	bytes, _ := json.Marshal(pe)
+	return string(bytes)
+}
+
 func runAndTrackTask(ctx context.Context, record *TaskStatus, task func(ctx context.Context) (interface{}, error)) {
 	defer record.waitGroup.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			err := fmt.Errorf("Panic cought: %v, StackTrace: %s, %w", r, debug.Stack(), ErrPanic)
+			frame, hash := identifypanic()
+			err := &panicErr{
+				frame:     frame,
+				stackhash: hash,
+				recovery:  r,
+			}
 			record.finish(StateFailed, nil, err)
 		}
 	}()
