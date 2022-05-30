@@ -95,11 +95,10 @@ func StartGeneric[T any](ctx context.Context, task AsyncGenericFunc[T]) *Task[T]
 }
 
 // NewCompletedTask returns a Completed task, with result=nil, error=nil
-func NewCompletedGenericTask[T any]() *Task[T] {
-	var result T
+func NewCompletedGenericTask[T any](value *T) *Task[T] {
 	return &Task[T]{
 		state:  StateCompleted,
-		result: &result,
+		result: value,
 		err:    nil,
 		// nil cancelFunc and waitGroup should be protected with IsTerminalState()
 		cancelFunc: nil,
