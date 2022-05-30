@@ -16,3 +16,16 @@ func (tsk *TaskStatus) ContinueWith(ctx context.Context, next ContinueFunc) *Tas
 		return next(fCtx, result)
 	})
 }
+
+// ContinueFunc is a function that can be connected to previous task with ContinueWith
+type ContinueFuncGeneric[T any, S any] func(context.Context, *T) (*S, error)
+
+func ContinueWith[T any, S any](ctx context.Context, tsk *Task[T], next ContinueFuncGeneric[T, S]) *Task[S] {
+	return StartGeneric(ctx, func(fCtx context.Context) (*S, error) {
+		result, err := tsk.Wait(fCtx)
+		if err != nil {
+			return nil, err
+		}
+		return next(fCtx, result)
+	})
+}
