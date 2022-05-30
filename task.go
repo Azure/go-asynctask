@@ -3,44 +3,44 @@ package asynctask
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"runtime/debug"
 	"sync"
 	"time"
 )
 
 // AsyncFunc is a function interface this asyncTask accepts.
-type AsyncFunc func(context.Context) (interface{}, error)
+type AsyncGenericFunc[T any] func(context.Context) (*T, error)
 
-// TaskStatus is a handle to the running function.
+// Task is a handle to the running function.
 // which you can use to wait, cancel, get the result.
-type TaskStatus struct {
+type Task[T any] struct {
 	state      State
-	result     interface{}
+	result     *T
 	err        error
 	cancelFunc context.CancelFunc
 	waitGroup  *sync.WaitGroup
 }
 
 // State return state of the task.
-func (t *TaskStatus) State() State {
+func (t *Task[T]) State() State {
 	return t.state
 }
 
 // Cancel abort the task execution
 // !! only if the function provided handles context cancel.
-func (t *TaskStatus) Cancel() {
+func (t *Task[T]) Cancel() {
 	if !t.state.IsTerminalState() {
 		t.cancelFunc()
 
-		t.finish(StateCanceled, nil, ErrCanceled)
+		var result T
+		t.finish(StateCanceled, &result, ErrCanceled)
 	}
 }
 
 // Wait block current thread/routine until task finished or failed.
 // context passed in can terminate the wait, through context cancellation
 // but won't terminate the task (unless it's same context)
-func (t *TaskStatus) Wait(ctx context.Context) (interface{}, error) {
+func (t *Task[T]) Wait(ctx context.Context) (*T, error) {
 	// return immediately if task already in terminal state.
 	if t.state.IsTerminalState() {
 		return t.result, t.err
@@ -62,7 +62,7 @@ func (t *TaskStatus) Wait(ctx context.Context) (interface{}, error) {
 
 // WaitWithTimeout block current thread/routine until task finished or failed, or exceed the duration specified.
 // timeout only stop waiting, taks will remain running.
-func (t *TaskStatus) WaitWithTimeout(ctx context.Context, timeout time.Duration) (interface{}, error) {
+func (t *Task[T]) WaitWithTimeout(ctx context.Context, timeout time.Duration) (*T, error) {
 	// return immediately if task already in terminal state.
 	if t.state.IsTerminalState() {
 		return t.result, t.err
@@ -74,11 +74,32 @@ func (t *TaskStatus) WaitWithTimeout(ctx context.Context, timeout time.Duration)
 	return t.Wait(ctx)
 }
 
+// Start run a async function and returns you a handle which you can Wait or Cancel.
+// context passed in may impact task lifetime (from context cancellation)
+func StartGeneric[T any](ctx context.Context, task AsyncGenericFunc[T]) *Task[T] {
+	ctx, cancel := context.WithCancel(ctx)
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+
+	var result T
+	record := &Task[T]{
+		state:      StateRunning,
+		result:     &result,
+		cancelFunc: cancel,
+		waitGroup:  wg,
+	}
+
+	go runAndTrackGenericTask(ctx, record, task)
+
+	return record
+}
+
 // NewCompletedTask returns a Completed task, with result=nil, error=nil
-func NewCompletedTask() *TaskStatus {
-	return &TaskStatus{
+func NewCompletedGenericTask[T any]() *Task[T] {
+	var result T
+	return &Task[T]{
 		state:  StateCompleted,
-		result: nil,
+		result: &result,
 		err:    nil,
 		// nil cancelFunc and waitGroup should be protected with IsTerminalState()
 		cancelFunc: nil,
@@ -86,42 +107,7 @@ func NewCompletedTask() *TaskStatus {
 	}
 }
 
-// Start run a async function and returns you a handle which you can Wait or Cancel.
-// context passed in may impact task lifetime (from context cancellation)
-func Start(ctx context.Context, task AsyncFunc) *TaskStatus {
-	ctx, cancel := context.WithCancel(ctx)
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	record := &TaskStatus{
-		state:      StateRunning,
-		result:     nil,
-		cancelFunc: cancel,
-		waitGroup:  wg,
-	}
-
-	go runAndTrackTask(ctx, record, task)
-
-	return record
-}
-
-// isErrorReallyError do extra error check
-//    - Nil Pointer to a Type (that implement error)
-//    - Zero Value of a Type (that implement error)
-func isErrorReallyError(err error) bool {
-	v := reflect.ValueOf(err)
-	if v.Type().Kind() == reflect.Ptr &&
-		v.IsNil() {
-		return false
-	}
-
-	if v.Type().Kind() == reflect.Struct &&
-		v.IsZero() {
-		return false
-	}
-	return true
-}
-
-func runAndTrackTask(ctx context.Context, record *TaskStatus, task func(ctx context.Context) (interface{}, error)) {
+func runAndTrackGenericTask[T any](ctx context.Context, record *Task[T], task func(ctx context.Context) (*T, error)) {
 	defer record.waitGroup.Done()
 	defer func() {
 		if r := recover(); r != nil {
@@ -132,11 +118,7 @@ func runAndTrackTask(ctx context.Context, record *TaskStatus, task func(ctx cont
 
 	result, err := task(ctx)
 
-	if err == nil ||
-		// incase some team use pointer typed error (implement Error() string on a pointer type)
-		// which can break err check (but nil point assigned to error result to non-nil error)
-		// check out TestPointerErrorCase in error_test.go
-		!isErrorReallyError(err) {
+	if err == nil {
 		record.finish(StateCompleted, result, nil)
 		return
 	}
@@ -145,7 +127,7 @@ func runAndTrackTask(ctx context.Context, record *TaskStatus, task func(ctx cont
 	record.finish(StateFailed, result, err)
 }
 
-func (t *TaskStatus) finish(state State, result interface{}, err error) {
+func (t *Task[T]) finish(state State, result *T, err error) {
 	// only update state and result if not yet canceled
 	if !t.state.IsTerminalState() {
 		t.state = state
