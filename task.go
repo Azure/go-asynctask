@@ -9,7 +9,7 @@ import (
 )
 
 // AsyncFunc is a function interface this asyncTask accepts.
-type AsyncGenericFunc[T any] func(context.Context) (*T, error)
+type AsyncFunc[T any] func(context.Context) (*T, error)
 
 // Task is a handle to the running function.
 // which you can use to wait, cancel, get the result.
@@ -40,10 +40,10 @@ func (t *Task[T]) Cancel() {
 // Wait block current thread/routine until task finished or failed.
 // context passed in can terminate the wait, through context cancellation
 // but won't terminate the task (unless it's same context)
-func (t *Task[T]) Wait(ctx context.Context) (*T, error) {
+func (t *Task[T]) Wait(ctx context.Context) error {
 	// return immediately if task already in terminal state.
 	if t.state.IsTerminalState() {
-		return t.result, t.err
+		return t.err
 	}
 
 	ch := make(chan interface{})
@@ -54,9 +54,9 @@ func (t *Task[T]) Wait(ctx context.Context) (*T, error) {
 
 	select {
 	case <-ch:
-		return t.result, t.err
+		return t.err
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return ctx.Err()
 	}
 }
 
@@ -71,12 +71,22 @@ func (t *Task[T]) WaitWithTimeout(ctx context.Context, timeout time.Duration) (*
 	ctx, cancelFunc := context.WithTimeout(ctx, timeout)
 	defer cancelFunc()
 
-	return t.Wait(ctx)
+	return t.Result(ctx)
+}
+
+func (t *Task[T]) Result(ctx context.Context) (*T, error) {
+	err := t.Wait(ctx)
+	if err != nil {
+		var result T
+		return &result, err
+	}
+
+	return t.result, t.err
 }
 
 // Start run a async function and returns you a handle which you can Wait or Cancel.
 // context passed in may impact task lifetime (from context cancellation)
-func StartGeneric[T any](ctx context.Context, task AsyncGenericFunc[T]) *Task[T] {
+func Start[T any](ctx context.Context, task AsyncFunc[T]) *Task[T] {
 	ctx, cancel := context.WithCancel(ctx)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -95,7 +105,7 @@ func StartGeneric[T any](ctx context.Context, task AsyncGenericFunc[T]) *Task[T]
 }
 
 // NewCompletedTask returns a Completed task, with result=nil, error=nil
-func NewCompletedGenericTask[T any](value *T) *Task[T] {
+func NewCompletedTask[T any](value *T) *Task[T] {
 	return &Task[T]{
 		state:  StateCompleted,
 		result: value,
