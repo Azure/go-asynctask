@@ -6,6 +6,10 @@ import (
 	"sync"
 )
 
+type Waitable interface {
+	Wait(context.Context) error
+}
+
 // WaitAllOptions defines options for WaitAll function
 type WaitAllOptions struct {
 	// FailFast set to true will indicate WaitAll to return on first error it sees.
@@ -14,7 +18,7 @@ type WaitAllOptions struct {
 
 // WaitAll block current thread til all task finished.
 // first error from any tasks passed in will be returned.
-func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...*TaskStatus) error {
+func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...Waitable) error {
 	tasksCount := len(tasks)
 
 	mutex := sync.Mutex{}
@@ -65,8 +69,8 @@ func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...*TaskStatus)
 	return nil
 }
 
-func waitOne(ctx context.Context, tsk *TaskStatus, errorCh chan<- error, errorChClosed *bool, mutex *sync.Mutex) {
-	_, err := tsk.Wait(ctx)
+func waitOne(ctx context.Context, tsk Waitable, errorCh chan<- error, errorChClosed *bool, mutex *sync.Mutex) {
+	err := tsk.Wait(ctx)
 
 	// why mutex?
 	// if all tasks start using same context (unittest is good example)

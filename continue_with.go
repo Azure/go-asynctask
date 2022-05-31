@@ -3,13 +3,11 @@ package asynctask
 import "context"
 
 // ContinueFunc is a function that can be connected to previous task with ContinueWith
-type ContinueFunc func(context.Context, interface{}) (interface{}, error)
+type ContinueFunc[T any, S any] func(context.Context, *T) (*S, error)
 
-// ContinueWith start the function when current task is done.
-// result from previous task will be passed in, if no error.
-func (tsk *TaskStatus) ContinueWith(ctx context.Context, next ContinueFunc) *TaskStatus {
-	return Start(ctx, func(fCtx context.Context) (interface{}, error) {
-		result, err := tsk.Wait(fCtx)
+func ContinueWith[T any, S any](ctx context.Context, tsk *Task[T], next ContinueFunc[T, S]) *Task[S] {
+	return Start(ctx, func(fCtx context.Context) (*S, error) {
+		result, err := tsk.Result(fCtx)
 		if err != nil {
 			return nil, err
 		}

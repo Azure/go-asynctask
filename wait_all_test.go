@@ -18,7 +18,8 @@ func TestWaitAll(t *testing.T) {
 	countingTsk1 := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
 	countingTsk2 := asynctask.Start(ctx, getCountingTask(10, 20*time.Millisecond))
 	countingTsk3 := asynctask.Start(ctx, getCountingTask(10, 2*time.Millisecond))
-	completedTsk := asynctask.NewCompletedTask()
+	result := "something"
+	completedTsk := asynctask.NewCompletedTask(&result)
 
 	start := time.Now()
 	err := asynctask.WaitAll(ctx, &asynctask.WaitAllOptions{FailFast: true}, countingTsk1, countingTsk2, countingTsk3, completedTsk)
@@ -36,7 +37,8 @@ func TestWaitAllFailFastCase(t *testing.T) {
 	countingTsk := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
 	errorTsk := asynctask.Start(ctx, getErrorTask("expected error", 10*time.Millisecond))
 	panicTsk := asynctask.Start(ctx, getPanicTask(20*time.Millisecond))
-	completedTsk := asynctask.NewCompletedTask()
+	result := "something"
+	completedTsk := asynctask.NewCompletedTask(&result)
 
 	start := time.Now()
 	err := asynctask.WaitAll(ctx, &asynctask.WaitAllOptions{FailFast: true}, countingTsk, errorTsk, panicTsk, completedTsk)
@@ -61,7 +63,8 @@ func TestWaitAllErrorCase(t *testing.T) {
 	countingTsk := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
 	errorTsk := asynctask.Start(ctx, getErrorTask("expected error", 10*time.Millisecond))
 	panicTsk := asynctask.Start(ctx, getPanicTask(20*time.Millisecond))
-	completedTsk := asynctask.NewCompletedTask()
+	result := "something"
+	completedTsk := asynctask.NewCompletedTask(&result)
 
 	start := time.Now()
 	err := asynctask.WaitAll(ctx, &asynctask.WaitAllOptions{FailFast: false}, countingTsk, errorTsk, panicTsk, completedTsk)
@@ -86,7 +89,8 @@ func TestWaitAllCanceled(t *testing.T) {
 	countingTsk1 := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
 	countingTsk2 := asynctask.Start(ctx, getCountingTask(10, 20*time.Millisecond))
 	countingTsk3 := asynctask.Start(ctx, getCountingTask(10, 2*time.Millisecond))
-	completedTsk := asynctask.NewCompletedTask()
+	result := "something"
+	completedTsk := asynctask.NewCompletedTask(&result)
 
 	waitCtx, cancelFunc1 := context.WithTimeout(ctx, 5*time.Millisecond)
 	defer cancelFunc1()
