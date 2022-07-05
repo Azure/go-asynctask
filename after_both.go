@@ -2,7 +2,7 @@ package asynctask
 
 import "context"
 
-// AfterBoth is a function that has 2 input.
+// AfterBothFunc is a function that has 2 input.
 type AfterBothFunc[T, S, R any] func(context.Context, *T, *S) (*R, error)
 
 // AfterBoth runs the function after both 2 input task finished, and will be feed with result from 2 input task.
