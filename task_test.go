@@ -66,8 +66,8 @@ func TestEasyGenericCase(t *testing.T) {
 	assert.NotNil(t, rawResult)
 	assert.Equal(t, *rawResult, 9)
 
-	// 3 microSecond doesn't work anymore, the mutex lock does cost some time
-	assert.True(t, elapsed.Microseconds() < 10, fmt.Sprintf("Second wait should have return immediately: %s", elapsed))
+	// Result should be returned immediately
+	assert.True(t, elapsed.Milliseconds() < 1, fmt.Sprintf("Second wait should have return immediately: %s", elapsed))
 }
 
 func TestCancelFuncOnGeneric(t *testing.T) {
