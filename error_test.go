@@ -29,8 +29,8 @@ func TestTimeoutCase(t *testing.T) {
 	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
 	defer cancelFunc()
 
-	tsk := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
-	_, err := tsk.WaitWithTimeout(ctx, 300*time.Millisecond)
+	tsk := asynctask.Start(ctx, getCountingTask(10, "timeoutCase", countingTaskDefaultStepLatency))
+	_, err := tsk.WaitWithTimeout(ctx, 30*time.Millisecond)
 	assert.True(t, errors.Is(err, context.DeadlineExceeded), "expecting DeadlineExceeded")
 
 	// the last Wait error should affect running task

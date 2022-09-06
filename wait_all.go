@@ -3,7 +3,6 @@ package asynctask
 import (
 	"context"
 	"fmt"
-	"sync"
 )
 
 type Waitable interface {
@@ -21,14 +20,14 @@ type WaitAllOptions struct {
 func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...Waitable) error {
 	tasksCount := len(tasks)
 
-	mutex := sync.Mutex{}
-	errorChClosed := false
 	errorCh := make(chan error, tasksCount)
-	// hard close channel
-	defer close(errorCh)
+	// when failFast enabled, we return on first error we see, while other task may still post error in this channel.
+	if !options.FailFast {
+		defer close(errorCh)
+	}
 
 	for _, tsk := range tasks {
-		go waitOne(ctx, tsk, errorCh, &errorChClosed, &mutex)
+		go waitOne(ctx, tsk, errorCh)
 	}
 
 	runningTasks := tasksCount
@@ -40,20 +39,17 @@ func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...Waitable) er
 			if err != nil {
 				// return immediately after receive first error.
 				if options.FailFast {
-					softCloseChannel(&mutex, &errorChClosed)
 					return err
 				}
 
 				errList = append(errList, err)
 			}
 		case <-ctx.Done():
-			softCloseChannel(&mutex, &errorChClosed)
-			return fmt.Errorf("WaitAll context canceled: %w", ctx.Err())
+			return fmt.Errorf("WaitAll %w", ctx.Err())
 		}
 
 		// are we finished yet?
 		if runningTasks == 0 {
-			softCloseChannel(&mutex, &errorChClosed)
 			break
 		}
 	}
@@ -69,23 +65,7 @@ func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...Waitable) er
 	return nil
 }
 
-func waitOne(ctx context.Context, tsk Waitable, errorCh chan<- error, errorChClosed *bool, mutex *sync.Mutex) {
+func waitOne(ctx context.Context, tsk Waitable, errorCh chan<- error) {
 	err := tsk.Wait(ctx)
-
-	// why mutex?
-	// if all tasks start using same context (unittest is good example)
-	// and that context got canceled, all task fail at same time.
-	// first one went in and close the channel, while another one already went through gate check.
-	// raise a panic with send to closed channel.
-	mutex.Lock()
-	defer mutex.Unlock()
-	if !*errorChClosed {
-		errorCh <- err
-	}
-}
-
-func softCloseChannel(mutex *sync.Mutex, closed *bool) {
-	mutex.Lock()
-	defer mutex.Unlock()
-	*closed = true
+	errorCh <- err
 }

@@ -2,6 +2,7 @@ package asynctask_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 )
 
 const testContextKey string = "testing"
+const countingTaskDefaultStepLatency time.Duration = 20 * time.Millisecond
 
 func newTestContext(t *testing.T) context.Context {
 	return context.WithValue(context.TODO(), testContextKey, t)
@@ -19,7 +21,7 @@ func newTestContextWithTimeout(t *testing.T, timeout time.Duration) (context.Con
 	return context.WithTimeout(context.WithValue(context.TODO(), testContextKey, t), timeout)
 }
 
-func getCountingTask(countTo int, sleepInterval time.Duration) asynctask.AsyncFunc[int] {
+func getCountingTask(countTo int, taskId string, sleepInterval time.Duration) asynctask.AsyncFunc[int] {
 	return func(ctx context.Context) (*int, error) {
 		t := ctx.Value(testContextKey).(*testing.T)
 
@@ -27,10 +29,12 @@ func getCountingTask(countTo int, sleepInterval time.Duration) asynctask.AsyncFu
 		for i := 0; i < countTo; i++ {
 			select {
 			case <-time.After(sleepInterval):
-				t.Logf("  working %d", i)
+				t.Logf("[%s]: counting %d", taskId, i)
 				result = i
 			case <-ctx.Done():
-				t.Log("work canceled")
+				// testing.Logf would cause DataRace error when test is already finished: https://github.com/golang/go/issues/40343
+				// leave minor time buffer before exit test to finish this last logging at least.
+				t.Logf("[%s]: work canceled", taskId)
 				return &result, nil
 			}
 		}
@@ -43,7 +47,7 @@ func TestEasyGenericCase(t *testing.T) {
 	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
 	defer cancelFunc()
 
-	t1 := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
+	t1 := asynctask.Start(ctx, getCountingTask(10, "easyTask", countingTaskDefaultStepLatency))
 	assert.Equal(t, asynctask.StateRunning, t1.State(), "Task should queued to Running")
 
 	rawResult, err := t1.Result(ctx)
@@ -62,7 +66,8 @@ func TestEasyGenericCase(t *testing.T) {
 	assert.NotNil(t, rawResult)
 	assert.Equal(t, *rawResult, 9)
 
-	assert.True(t, elapsed.Microseconds() < 3, "Second wait should return immediately")
+	// Result should be returned immediately
+	assert.True(t, elapsed.Milliseconds() < 1, fmt.Sprintf("Second wait should have return immediately: %s", elapsed))
 }
 
 func TestCancelFuncOnGeneric(t *testing.T) {
@@ -70,10 +75,10 @@ func TestCancelFuncOnGeneric(t *testing.T) {
 	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
 	defer cancelFunc()
 
-	t1 := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
+	t1 := asynctask.Start(ctx, getCountingTask(10, "cancelTask", countingTaskDefaultStepLatency))
 	assert.Equal(t, asynctask.StateRunning, t1.State(), "Task should queued to Running")
 
-	time.Sleep(time.Second * 1)
+	time.Sleep(countingTaskDefaultStepLatency)
 	t1.Cancel()
 
 	_, err := t1.Result(ctx)
@@ -81,7 +86,7 @@ func TestCancelFuncOnGeneric(t *testing.T) {
 	assert.Equal(t, asynctask.StateCanceled, t1.State(), "Task should remain in cancel state")
 
 	// I can cancel again, and nothing changes
-	time.Sleep(time.Second * 1)
+	time.Sleep(countingTaskDefaultStepLatency)
 	t1.Cancel()
 	_, err = t1.Result(ctx)
 	assert.Equal(t, asynctask.ErrCanceled, err, "should return reason of error")
@@ -101,11 +106,11 @@ func TestConsistentResultAfterCancelGenericTask(t *testing.T) {
 	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
 	defer cancelFunc()
 
-	t1 := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
-	t2 := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
+	t1 := asynctask.Start(ctx, getCountingTask(10, "consistentTask1", countingTaskDefaultStepLatency))
+	t2 := asynctask.Start(ctx, getCountingTask(10, "consistentTask2", countingTaskDefaultStepLatency))
 	assert.Equal(t, asynctask.StateRunning, t1.State(), "Task should queued to Running")
 
-	time.Sleep(time.Second * 1)
+	time.Sleep(countingTaskDefaultStepLatency)
 	start := time.Now()
 	t1.Cancel()
 	duration := time.Since(start)
@@ -150,22 +155,24 @@ func TestCrazyCaseGeneric(t *testing.T) {
 	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
 	defer cancelFunc()
 
-	numOfTasks := 8000 // if you have --race switch on: limit on 8128 simultaneously alive goroutines is exceeded, dying
+	numOfTasks := 100 // if you have --race switch on: limit on 8128 simultaneously alive goroutines is exceeded, dying
 	tasks := map[int]*asynctask.Task[int]{}
 	for i := 0; i < numOfTasks; i++ {
-		tasks[i] = asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
+		tasks[i] = asynctask.Start(ctx, getCountingTask(10, fmt.Sprintf("CrazyTask%d", i), countingTaskDefaultStepLatency))
 	}
 
-	time.Sleep(200 * time.Millisecond)
+	// sleep 1 step, then cancel task with even number
+	time.Sleep(countingTaskDefaultStepLatency)
 	for i := 0; i < numOfTasks; i += 2 {
 		tasks[i].Cancel()
 	}
 
+	time.Sleep(time.Duration(numOfTasks) * 2 * time.Microsecond)
 	for i := 0; i < numOfTasks; i += 1 {
 		rawResult, err := tasks[i].Result(ctx)
 
 		if i%2 == 0 {
-			assert.Equal(t, asynctask.ErrCanceled, err, "should be canceled")
+			assert.Equal(t, asynctask.ErrCanceled, err, fmt.Sprintf("task %s should be canceled, but it finished with %+v", fmt.Sprintf("CrazyTask%d", i), rawResult))
 			assert.Equal(t, *rawResult, 0)
 		} else {
 			assert.NoError(t, err)

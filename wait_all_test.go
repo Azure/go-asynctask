@@ -3,6 +3,7 @@ package asynctask_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -12,47 +13,54 @@ import (
 
 func TestWaitAll(t *testing.T) {
 	t.Parallel()
-	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
+	ctx, cancelFunc := newTestContextWithTimeout(t, 2*time.Second)
 	defer cancelFunc()
 
-	countingTsk1 := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
-	countingTsk2 := asynctask.Start(ctx, getCountingTask(10, 20*time.Millisecond))
-	countingTsk3 := asynctask.Start(ctx, getCountingTask(10, 2*time.Millisecond))
+	start := time.Now()
+	countingTsk1 := asynctask.Start(ctx, getCountingTask(10, "countingPer40ms", 40*time.Millisecond))
+	countingTsk2 := asynctask.Start(ctx, getCountingTask(10, "countingPer20ms", 20*time.Millisecond))
+	countingTsk3 := asynctask.Start(ctx, getCountingTask(10, "countingPer2ms", 2*time.Millisecond))
 	result := "something"
 	completedTsk := asynctask.NewCompletedTask(&result)
 
-	start := time.Now()
 	err := asynctask.WaitAll(ctx, &asynctask.WaitAllOptions{FailFast: true}, countingTsk1, countingTsk2, countingTsk3, completedTsk)
 	elapsed := time.Since(start)
 	assert.NoError(t, err)
 	// should only finish after longest task.
-	assert.True(t, elapsed > 10*200*time.Millisecond)
+	assert.True(t, elapsed > 10*40*time.Millisecond, fmt.Sprintf("actually elapsed: %v", elapsed))
 }
 
 func TestWaitAllFailFastCase(t *testing.T) {
 	t.Parallel()
 	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
-	defer cancelFunc()
 
-	countingTsk := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
+	start := time.Now()
+	countingTsk := asynctask.Start(ctx, getCountingTask(10, "countingPer40ms", 40*time.Millisecond))
 	errorTsk := asynctask.Start(ctx, getErrorTask("expected error", 10*time.Millisecond))
 	panicTsk := asynctask.Start(ctx, getPanicTask(20*time.Millisecond))
 	result := "something"
 	completedTsk := asynctask.NewCompletedTask(&result)
 
-	start := time.Now()
 	err := asynctask.WaitAll(ctx, &asynctask.WaitAllOptions{FailFast: true}, countingTsk, errorTsk, panicTsk, completedTsk)
 	countingTskState := countingTsk.State()
 	panicTskState := countingTsk.State()
 	elapsed := time.Since(start)
+
+	cancelFunc() // all assertion variable captured, cancel counting task
+
 	assert.Error(t, err)
 	assert.Equal(t, "expected error", err.Error())
 	// should fail before we finish panic task
-	assert.True(t, elapsed.Milliseconds() < 15)
+	assert.True(t, elapsed.Milliseconds() < 20)
 
 	// since we pass FailFast, countingTsk and panicTsk should be still running
 	assert.Equal(t, asynctask.StateRunning, countingTskState)
 	assert.Equal(t, asynctask.StateRunning, panicTskState)
+
+	// counting task do testing.Logf in another go routine
+	// while testing.Logf would cause DataRace error when test is already finished: https://github.com/golang/go/issues/40343
+	// wait minor time for the go routine to finish.
+	time.Sleep(1 * time.Millisecond)
 }
 
 func TestWaitAllErrorCase(t *testing.T) {
@@ -60,25 +68,32 @@ func TestWaitAllErrorCase(t *testing.T) {
 	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
 	defer cancelFunc()
 
-	countingTsk := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
+	start := time.Now()
+	countingTsk := asynctask.Start(ctx, getCountingTask(10, "countingPer40ms", 40*time.Millisecond))
 	errorTsk := asynctask.Start(ctx, getErrorTask("expected error", 10*time.Millisecond))
 	panicTsk := asynctask.Start(ctx, getPanicTask(20*time.Millisecond))
 	result := "something"
 	completedTsk := asynctask.NewCompletedTask(&result)
 
-	start := time.Now()
 	err := asynctask.WaitAll(ctx, &asynctask.WaitAllOptions{FailFast: false}, countingTsk, errorTsk, panicTsk, completedTsk)
 	countingTskState := countingTsk.State()
 	panicTskState := panicTsk.State()
 	elapsed := time.Since(start)
+
+	cancelFunc() // all assertion variable captured, cancel counting task
+
 	assert.Error(t, err)
 	assert.Equal(t, "expected error", err.Error())
 	// should only finish after longest task.
-	assert.True(t, elapsed > 10*200*time.Millisecond)
+	assert.True(t, elapsed > 10*40*time.Millisecond, fmt.Sprintf("actually elapsed: %v", elapsed))
 
-	// since we pass FailFast, countingTsk and panicTsk should be still running
 	assert.Equal(t, asynctask.StateCompleted, countingTskState, "countingTask should finished")
 	assert.Equal(t, asynctask.StateFailed, panicTskState, "panic task should failed")
+
+	// counting task do testing.Logf in another go routine
+	// while testing.Logf would cause DataRace error when test is already finished: https://github.com/golang/go/issues/40343
+	// wait minor time for the go routine to finish.
+	time.Sleep(1 * time.Millisecond)
 }
 
 func TestWaitAllCanceled(t *testing.T) {
@@ -86,21 +101,28 @@ func TestWaitAllCanceled(t *testing.T) {
 	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
 	defer cancelFunc()
 
-	countingTsk1 := asynctask.Start(ctx, getCountingTask(10, 200*time.Millisecond))
-	countingTsk2 := asynctask.Start(ctx, getCountingTask(10, 20*time.Millisecond))
-	countingTsk3 := asynctask.Start(ctx, getCountingTask(10, 2*time.Millisecond))
+	start := time.Now()
+	countingTsk1 := asynctask.Start(ctx, getCountingTask(10, "countingPer40ms", 40*time.Millisecond))
+	countingTsk2 := asynctask.Start(ctx, getCountingTask(10, "countingPer20ms", 20*time.Millisecond))
+	countingTsk3 := asynctask.Start(ctx, getCountingTask(10, "countingPer2ms", 2*time.Millisecond))
 	result := "something"
 	completedTsk := asynctask.NewCompletedTask(&result)
 
 	waitCtx, cancelFunc1 := context.WithTimeout(ctx, 5*time.Millisecond)
 	defer cancelFunc1()
 
-	start := time.Now()
-	err := asynctask.WaitAll(waitCtx, &asynctask.WaitAllOptions{FailFast: true}, countingTsk1, countingTsk2, countingTsk3, completedTsk)
 	elapsed := time.Since(start)
+	err := asynctask.WaitAll(waitCtx, &asynctask.WaitAllOptions{FailFast: true}, countingTsk1, countingTsk2, countingTsk3, completedTsk)
+
+	cancelFunc() // all assertion variable captured, cancel counting task
+
 	assert.Error(t, err)
-	t.Log(err.Error())
 	assert.True(t, errors.Is(err, context.DeadlineExceeded))
 	// should return before first task
 	assert.True(t, elapsed < 10*2*time.Millisecond)
+
+	// counting task do testing.Logf in another go routine
+	// while testing.Logf would cause DataRace error when test is already finished: https://github.com/golang/go/issues/40343
+	// wait minor time for the go routine to finish.
+	time.Sleep(1 * time.Millisecond)
 }
