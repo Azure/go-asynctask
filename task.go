@@ -34,7 +34,6 @@ func (t *Task[T]) State() State {
 func (t *Task[T]) Cancel() bool {
 	if !t.finished() {
 		t.finish(StateCanceled, nil, ErrCanceled)
-		t.cancelFunc()
 		return true
 	}
 
@@ -146,6 +145,7 @@ func (t *Task[T]) finish(state State, result *T, err error) {
 	// only update state and result if not yet canceled
 	if !t.finished() {
 		t.mutex.Lock()
+		t.cancelFunc() // cancel the context
 		t.state = state
 		t.result = result
 		t.err = err

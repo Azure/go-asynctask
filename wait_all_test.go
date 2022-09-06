@@ -16,13 +16,13 @@ func TestWaitAll(t *testing.T) {
 	ctx, cancelFunc := newTestContextWithTimeout(t, 2*time.Second)
 	defer cancelFunc()
 
+	start := time.Now()
 	countingTsk1 := asynctask.Start(ctx, getCountingTask(10, "countingPer40ms", 40*time.Millisecond))
 	countingTsk2 := asynctask.Start(ctx, getCountingTask(10, "countingPer20ms", 20*time.Millisecond))
 	countingTsk3 := asynctask.Start(ctx, getCountingTask(10, "countingPer2ms", 2*time.Millisecond))
 	result := "something"
 	completedTsk := asynctask.NewCompletedTask(&result)
 
-	start := time.Now()
 	err := asynctask.WaitAll(ctx, &asynctask.WaitAllOptions{FailFast: true}, countingTsk1, countingTsk2, countingTsk3, completedTsk)
 	elapsed := time.Since(start)
 	assert.NoError(t, err)
@@ -34,13 +34,13 @@ func TestWaitAllFailFastCase(t *testing.T) {
 	t.Parallel()
 	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
 
+	start := time.Now()
 	countingTsk := asynctask.Start(ctx, getCountingTask(10, "countingPer40ms", 40*time.Millisecond))
 	errorTsk := asynctask.Start(ctx, getErrorTask("expected error", 10*time.Millisecond))
 	panicTsk := asynctask.Start(ctx, getPanicTask(20*time.Millisecond))
 	result := "something"
 	completedTsk := asynctask.NewCompletedTask(&result)
 
-	start := time.Now()
 	err := asynctask.WaitAll(ctx, &asynctask.WaitAllOptions{FailFast: true}, countingTsk, errorTsk, panicTsk, completedTsk)
 	countingTskState := countingTsk.State()
 	panicTskState := countingTsk.State()
@@ -51,7 +51,7 @@ func TestWaitAllFailFastCase(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, "expected error", err.Error())
 	// should fail before we finish panic task
-	assert.True(t, elapsed.Milliseconds() < 15)
+	assert.True(t, elapsed.Milliseconds() < 20)
 
 	// since we pass FailFast, countingTsk and panicTsk should be still running
 	assert.Equal(t, asynctask.StateRunning, countingTskState)
@@ -68,13 +68,13 @@ func TestWaitAllErrorCase(t *testing.T) {
 	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
 	defer cancelFunc()
 
+	start := time.Now()
 	countingTsk := asynctask.Start(ctx, getCountingTask(10, "countingPer40ms", 40*time.Millisecond))
 	errorTsk := asynctask.Start(ctx, getErrorTask("expected error", 10*time.Millisecond))
 	panicTsk := asynctask.Start(ctx, getPanicTask(20*time.Millisecond))
 	result := "something"
 	completedTsk := asynctask.NewCompletedTask(&result)
 
-	start := time.Now()
 	err := asynctask.WaitAll(ctx, &asynctask.WaitAllOptions{FailFast: false}, countingTsk, errorTsk, panicTsk, completedTsk)
 	countingTskState := countingTsk.State()
 	panicTskState := panicTsk.State()
@@ -101,6 +101,7 @@ func TestWaitAllCanceled(t *testing.T) {
 	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
 	defer cancelFunc()
 
+	start := time.Now()
 	countingTsk1 := asynctask.Start(ctx, getCountingTask(10, "countingPer40ms", 40*time.Millisecond))
 	countingTsk2 := asynctask.Start(ctx, getCountingTask(10, "countingPer20ms", 20*time.Millisecond))
 	countingTsk3 := asynctask.Start(ctx, getCountingTask(10, "countingPer2ms", 2*time.Millisecond))
@@ -110,9 +111,8 @@ func TestWaitAllCanceled(t *testing.T) {
 	waitCtx, cancelFunc1 := context.WithTimeout(ctx, 5*time.Millisecond)
 	defer cancelFunc1()
 
-	start := time.Now()
-	err := asynctask.WaitAll(waitCtx, &asynctask.WaitAllOptions{FailFast: true}, countingTsk1, countingTsk2, countingTsk3, completedTsk)
 	elapsed := time.Since(start)
+	err := asynctask.WaitAll(waitCtx, &asynctask.WaitAllOptions{FailFast: true}, countingTsk1, countingTsk2, countingTsk3, completedTsk)
 
 	cancelFunc() // all assertion variable captured, cancel counting task
 
