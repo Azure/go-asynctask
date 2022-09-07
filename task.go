@@ -143,13 +143,13 @@ func runAndTrackGenericTask[T any](ctx context.Context, record *Task[T], task fu
 
 func (t *Task[T]) finish(state State, result *T, err error) {
 	// only update state and result if not yet canceled
-	if !t.finished() {
-		t.mutex.Lock()
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	if !t.state.IsTerminalState() {
 		t.cancelFunc() // cancel the context
 		t.state = state
 		t.result = result
 		t.err = err
-		t.mutex.Unlock()
 	}
 }
 
