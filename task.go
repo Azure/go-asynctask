@@ -19,22 +19,25 @@ type Task[T any] struct {
 	err        error
 	cancelFunc context.CancelFunc
 	waitGroup  *sync.WaitGroup
+	mutex      *sync.Mutex
 }
 
 // State return state of the task.
 func (t *Task[T]) State() State {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
 	return t.state
 }
 
-// Cancel abort the task execution
-// !! only if the function provided handles context cancel.
-func (t *Task[T]) Cancel() {
-	if !t.state.IsTerminalState() {
-		t.cancelFunc()
-
-		var result T
-		t.finish(StateCanceled, &result, ErrCanceled)
+// Cancel the task by cancel the context.
+// !! this rely on the task function to check context cancellation and proper context handling.
+func (t *Task[T]) Cancel() bool {
+	if !t.finished() {
+		t.finish(StateCanceled, nil, ErrCanceled)
+		return true
 	}
+
+	return false
 }
 
 // Wait block current thread/routine until task finished or failed.
@@ -42,7 +45,7 @@ func (t *Task[T]) Cancel() {
 // but won't terminate the task (unless it's same context)
 func (t *Task[T]) Wait(ctx context.Context) error {
 	// return immediately if task already in terminal state.
-	if t.state.IsTerminalState() {
+	if t.finished() {
 		return t.err
 	}
 
@@ -64,7 +67,7 @@ func (t *Task[T]) Wait(ctx context.Context) error {
 // timeout only stop waiting, taks will remain running.
 func (t *Task[T]) WaitWithTimeout(ctx context.Context, timeout time.Duration) (*T, error) {
 	// return immediately if task already in terminal state.
-	if t.state.IsTerminalState() {
+	if t.finished() {
 		return t.result, t.err
 	}
 
@@ -90,13 +93,14 @@ func Start[T any](ctx context.Context, task AsyncFunc[T]) *Task[T] {
 	ctx, cancel := context.WithCancel(ctx)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
+	mutex := &sync.Mutex{}
 
-	var result T
 	record := &Task[T]{
 		state:      StateRunning,
-		result:     &result,
+		result:     nil,
 		cancelFunc: cancel,
 		waitGroup:  wg,
+		mutex:      mutex,
 	}
 
 	go runAndTrackGenericTask(ctx, record, task)
@@ -113,6 +117,7 @@ func NewCompletedTask[T any](value *T) *Task[T] {
 		// nil cancelFunc and waitGroup should be protected with IsTerminalState()
 		cancelFunc: nil,
 		waitGroup:  nil,
+		mutex:      &sync.Mutex{},
 	}
 }
 
@@ -138,9 +143,18 @@ func runAndTrackGenericTask[T any](ctx context.Context, record *Task[T], task fu
 
 func (t *Task[T]) finish(state State, result *T, err error) {
 	// only update state and result if not yet canceled
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
 	if !t.state.IsTerminalState() {
+		t.cancelFunc() // cancel the context
 		t.state = state
 		t.result = result
 		t.err = err
 	}
+}
+
+func (t *Task[T]) finished() bool {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	return t.state.IsTerminalState()
 }
