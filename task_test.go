@@ -150,6 +150,20 @@ func TestCompletedGenericTask(t *testing.T) {
 	assert.Equal(t, *resultGet, result)
 }
 
+func TestActionToFunc(t *testing.T) {
+	t.Parallel()
+
+	action := func(ctx context.Context) error {
+		return nil
+	}
+
+	ctx := context.Background()
+	task := asynctask.Start(ctx, asynctask.ActionToFunc(action))
+	result, err := task.Result(ctx)
+	assert.NoError(t, err)
+	assert.Nil(t, result)
+}
+
 func TestCrazyCaseGeneric(t *testing.T) {
 	t.Parallel()
 	ctx, cancelFunc := newTestContextWithTimeout(t, 3*time.Second)
