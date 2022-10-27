@@ -11,6 +11,15 @@ import (
 // AsyncFunc is a function interface this asyncTask accepts.
 type AsyncFunc[T any] func(context.Context) (*T, error)
 
+// ActionToFunc convert a Action to Func (C# term), to satisfy the AsyncFunc interface.
+//   Action is function that runs without return anything
+//   Func is function that runs and return something
+func ActionToFunc(action func(context.Context) error) func(context.Context) (*interface{}, error) {
+	return func(ctx context.Context) (*interface{}, error) {
+		return nil, action(ctx)
+	}
+}
+
 // Task is a handle to the running function.
 // which you can use to wait, cancel, get the result.
 type Task[T any] struct {

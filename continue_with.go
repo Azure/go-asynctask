@@ -14,3 +14,12 @@ func ContinueWith[T any, S any](ctx context.Context, tsk *Task[T], next Continue
 		return next(fCtx, result)
 	})
 }
+
+// ContinueActionToFunc convert a Action to Func (C# term), to satisfy the AsyncFunc interface.
+//   Action is function that runs without return anything
+//   Func is function that runs and return something
+func ContinueActionToFunc[T any](action func(context.Context, *T) error) func(context.Context, *T) (*interface{}, error) {
+	return func(ctx context.Context, t *T) (*interface{}, error) {
+		return nil, action(ctx, t)
+	}
+}

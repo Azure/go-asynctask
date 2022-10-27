@@ -2,6 +2,7 @@ package asynctask_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -74,4 +75,19 @@ func TestContinueWithFailureCase(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, asynctask.StateFailed, t3.State(), "Task3 should fail since preceeding task failed")
 	assert.Equal(t, "devide by 0", err.Error())
+}
+
+func TestContinueActionToFunc(t *testing.T) {
+	t.Parallel()
+	ctx := newTestContext(t)
+
+	t1 := asynctask.Start(ctx, func(ctx context.Context) (*int, error) { i := 0; return &i, nil })
+	t2 := asynctask.ContinueWith(ctx, t1, asynctask.ContinueActionToFunc(func(ctx context.Context, i *int) error {
+		if *i != 0 {
+			return fmt.Errorf("input should be 0, but got %d", i)
+		}
+		return nil
+	}))
+	_, err := t2.Result(ctx)
+	assert.NoError(t, err)
 }
