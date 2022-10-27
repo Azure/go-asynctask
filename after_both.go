@@ -21,3 +21,12 @@ func AfterBoth[T, S, R any](ctx context.Context, tskT *Task[T], tskS *Task[S], n
 		return next(fCtx, t, s)
 	})
 }
+
+// ContinueActionToFunc convert a Action to Func (C# term), to satisfy the AfterBothFunc interface.
+//   Action is function that runs without return anything
+//   Func is function that runs and return something
+func AfterBothActionToFunc[T, S any](action func(context.Context, *T, *S) error) func(context.Context, *T, *S) (*interface{}, error) {
+	return func(ctx context.Context, t *T, s *S) (*interface{}, error) {
+		return nil, action(ctx, t, s)
+	}
+}
