@@ -19,6 +19,13 @@ type WaitAllOptions struct {
 // first error from any tasks passed in will be returned.
 func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...Waitable) error {
 	tasksCount := len(tasks)
+	if tasksCount == 0 {
+		return nil
+	}
+
+	if options == nil {
+		options = &WaitAllOptions{}
+	}
 
 	errorCh := make(chan error, tasksCount)
 	// when failFast enabled, we return on first error we see, while other task may still post error in this channel.

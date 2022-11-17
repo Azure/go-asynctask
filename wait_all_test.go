@@ -126,3 +126,12 @@ func TestWaitAllCanceled(t *testing.T) {
 	// wait minor time for the go routine to finish.
 	time.Sleep(1 * time.Millisecond)
 }
+
+func TestWaitAllWithNoTasks(t *testing.T) {
+	t.Parallel()
+	ctx, cancelFunc := newTestContextWithTimeout(t, 1*time.Millisecond)
+	defer cancelFunc()
+
+	err := asynctask.WaitAll(ctx, nil)
+	assert.NoError(t, err)
+}
