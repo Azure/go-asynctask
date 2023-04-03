@@ -28,13 +28,21 @@ func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...Waitable) er
 	}
 
 	errorCh := make(chan error, tasksCount)
+	errorChClosed := false
 	// when failFast enabled, we return on first error we see, while other task may still post error in this channel.
 	if !options.FailFast {
+		errorChClosed = true
 		defer close(errorCh)
 	}
 
 	for _, tsk := range tasks {
-		go waitOne(ctx, tsk, errorCh)
+		currentTask := tsk // new pointer to avoid "loop variable tsk captured by func literal"
+		go func() {
+			err := currentTask.Wait(ctx)
+			if !errorChClosed {
+				errorCh <- err
+			}
+		}()
 	}
 
 	runningTasks := tasksCount
@@ -70,9 +78,4 @@ func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...Waitable) er
 
 	// no error at all.
 	return nil
-}
-
-func waitOne(ctx context.Context, tsk Waitable, errorCh chan<- error) {
-	err := tsk.Wait(ctx)
-	errorCh <- err
 }
