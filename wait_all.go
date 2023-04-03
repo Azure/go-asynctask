@@ -3,6 +3,7 @@ package asynctask
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 )
 
 type Waitable interface {
@@ -28,10 +29,11 @@ func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...Waitable) er
 	}
 
 	errorCh := make(chan error, tasksCount)
-	errorChClosed := false
+	errorChClosed := &atomic.Bool{}
+	errorChClosed.Store(false)
 	// when failFast enabled, we return on first error we see, while other task may still post error in this channel.
 	if !options.FailFast {
-		errorChClosed = true
+		errorChClosed.Store(true)
 		defer close(errorCh)
 	}
 
@@ -39,7 +41,7 @@ func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...Waitable) er
 		currentTask := tsk // new pointer to avoid "loop variable tsk captured by func literal"
 		go func() {
 			err := currentTask.Wait(ctx)
-			if !errorChClosed {
+			if !errorChClosed.Load() {
 				errorCh <- err
 			}
 		}()
@@ -56,7 +58,6 @@ func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...Waitable) er
 				if options.FailFast {
 					return err
 				}
-
 				errList = append(errList, err)
 			}
 		case <-ctx.Done():
