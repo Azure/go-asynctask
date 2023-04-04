@@ -30,11 +30,7 @@ func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...Waitable) er
 	errorCh := make(chan error, tasksCount)
 
 	for _, tsk := range tasks {
-		currentTask := tsk // new pointer to avoid "loop variable tsk captured by func literal"
-		go func() {
-			err := currentTask.Wait(ctx)
-			errorCh <- err
-		}()
+		go waitOne(ctx, tsk, errorCh)
 	}
 
 	runningTasks := tasksCount
@@ -69,4 +65,9 @@ func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...Waitable) er
 
 	// no error at all.
 	return nil
+}
+
+func waitOne(ctx context.Context, tsk Waitable, errorCh chan<- error) {
+	err := tsk.Wait(ctx)
+	errorCh <- err
 }
