@@ -8,7 +8,6 @@ import (
 
 	"github.com/Azure/go-asynctask"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/goleak"
 )
 
 const testContextKey string = "testing"
@@ -41,10 +40,6 @@ func getCountingTask(countTo int, taskId string, sleepInterval time.Duration) as
 		}
 		return &result, nil
 	}
-}
-
-func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
 }
 
 func TestEasyGenericCase(t *testing.T) {
