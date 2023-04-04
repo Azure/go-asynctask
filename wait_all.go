@@ -44,6 +44,7 @@ func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...Waitable) er
 				if options.FailFast {
 					return err
 				}
+
 				errList = append(errList, err)
 			}
 		case <-ctx.Done():
