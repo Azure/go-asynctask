@@ -14,6 +14,35 @@ import (
 const testContextKey string = "testing"
 const countingTaskDefaultStepLatency time.Duration = 20 * time.Millisecond
 
+func newTestContext(t *testing.T) context.Context {
+	return context.WithValue(context.TODO(), testContextKey, t)
+}
+
+func newTestContextWithTimeout(t *testing.T, timeout time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithValue(context.TODO(), testContextKey, t), timeout)
+}
+
+func getCountingTask(countTo int, taskId string, sleepInterval time.Duration) asynctask.AsyncFunc[int] {
+	return func(ctx context.Context) (*int, error) {
+		t := ctx.Value(testContextKey).(*testing.T)
+
+		result := 0
+		for i := 0; i < countTo; i++ {
+			select {
+			case <-time.After(sleepInterval):
+				t.Logf("[%s]: counting %d", taskId, i)
+				result = i
+			case <-ctx.Done():
+				// testing.Logf would cause DataRace error when test is already finished: https://github.com/golang/go/issues/40343
+				// leave minor time buffer before exit test to finish this last logging at least.
+				t.Logf("[%s]: work canceled", taskId)
+				return &result, nil
+			}
+		}
+		return &result, nil
+	}
+}
+
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m)
 }
@@ -168,34 +197,5 @@ func TestCrazyCaseGeneric(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, *rawResult, 9)
 		}
-	}
-}
-
-func newTestContext(t *testing.T) context.Context {
-	return context.WithValue(context.TODO(), testContextKey, t)
-}
-
-func newTestContextWithTimeout(t *testing.T, timeout time.Duration) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.WithValue(context.TODO(), testContextKey, t), timeout)
-}
-
-func getCountingTask(countTo int, taskId string, sleepInterval time.Duration) asynctask.AsyncFunc[int] {
-	return func(ctx context.Context) (*int, error) {
-		t := ctx.Value(testContextKey).(*testing.T)
-
-		result := 0
-		for i := 0; i < countTo; i++ {
-			select {
-			case <-time.After(sleepInterval):
-				t.Logf("[%s]: counting %d", taskId, i)
-				result = i
-			case <-ctx.Done():
-				// testing.Logf would cause DataRace error when test is already finished: https://github.com/golang/go/issues/40343
-				// leave minor time buffer before exit test to finish this last logging at least.
-				t.Logf("[%s]: work canceled", taskId)
-				return &result, nil
-			}
-		}
-		return &result, nil
 	}
 }
