@@ -84,7 +84,7 @@ func TestWaitAllErrorCase(t *testing.T) {
 	cancelFunc() // all assertion variable captured, cancel counting task
 
 	assert.Error(t, err)
-	assert.Equal(t, "WaitAll context deadline exceeded", err.Error())
+	assert.Equal(t, "expected error", err.Error(), "expecting first error")
 	// should only finish after longest task.
 	assert.True(t, elapsed > 10*40*time.Millisecond, fmt.Sprintf("actually elapsed: %v", elapsed))
 
