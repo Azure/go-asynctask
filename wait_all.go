@@ -3,7 +3,6 @@ package asynctask
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
 )
 
 type Waitable interface {
@@ -29,8 +28,6 @@ func WaitAll(ctx context.Context, options *WaitAllOptions, tasks ...Waitable) er
 	}
 
 	errorCh := make(chan error, tasksCount)
-	errorChClosed := &atomic.Bool{}
-	errorChClosed.Store(false)
 
 	for _, tsk := range tasks {
 		currentTask := tsk // new pointer to avoid "loop variable tsk captured by func literal"
