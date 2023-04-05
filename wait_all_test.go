@@ -81,6 +81,7 @@ func TestWaitAllErrorCase(t *testing.T) {
 	countingTskState := countingTsk.State()
 	panicTskState := panicTsk.State()
 	errTskState := errorTsk.State()
+	completedTskState := completedTsk.State()
 	elapsed := time.Since(start)
 
 	cancelTaskExecution() // all assertion variable captured, cancel counting task
@@ -93,6 +94,7 @@ func TestWaitAllErrorCase(t *testing.T) {
 	assert.Equal(t, asynctask.StateCompleted, countingTskState, "countingTask should finished")
 	assert.Equal(t, asynctask.StateFailed, errTskState, "error task should failed")
 	assert.Equal(t, asynctask.StateFailed, panicTskState, "panic task should failed")
+	assert.Equal(t, asynctask.StateCompleted, completedTskState, "completed task should finished")
 
 	// counting task do testing.Logf in another go routine
 	// while testing.Logf would cause DataRace error when test is already finished: https://github.com/golang/go/issues/40343
@@ -100,7 +102,7 @@ func TestWaitAllErrorCase(t *testing.T) {
 	time.Sleep(1 * time.Millisecond)
 }
 
-func TestWaitAllFailFastCanceled(t *testing.T) {
+func TestWaitAllFailFastCancelingWait(t *testing.T) {
 	t.Parallel()
 	ctx, cancelTaskExecution := newTestContextWithTimeout(t, 3*time.Second)
 
@@ -137,7 +139,7 @@ func TestWaitAllFailFastCanceled(t *testing.T) {
 	time.Sleep(1 * time.Millisecond)
 }
 
-func TestWaitAllCanceled(t *testing.T) {
+func TestWaitAllCancelingWait(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancelTaskExecution := newTestContextWithTimeout(t, 4*time.Millisecond)
