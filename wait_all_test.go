@@ -77,7 +77,7 @@ func TestWaitAllErrorCase(t *testing.T) {
 	result := "something"
 	completedTsk := asynctask.NewCompletedTask(&result)
 
-	err := asynctask.WaitAll(ctx, &asynctask.WaitAllOptions{FailFast: false}, countingTsk, errorTsk, panicTsk, completedTsk)
+	err := asynctask.WaitAll(ctx, nil, countingTsk, errorTsk, panicTsk, completedTsk)
 	countingTskState := countingTsk.State()
 	panicTskState := panicTsk.State()
 	errTskState := errorTsk.State()
@@ -156,7 +156,7 @@ func TestWaitAllCancelingWait(t *testing.T) {
 	waitCtx, cancelWait := context.WithTimeout(ctx, 5*time.Millisecond)
 	defer cancelWait()
 
-	err := asynctask.WaitAll(waitCtx, &asynctask.WaitAllOptions{FailFast: false}, countingTsk1, countingTsk2, countingTsk3, completedTsk, uncontrollableTask)
+	err := asynctask.WaitAll(waitCtx, nil, countingTsk1, countingTsk2, countingTsk3, completedTsk, uncontrollableTask)
 	elapsed := time.Since(start)
 	t.Logf("WaitAll finished, elapsed: %v", elapsed)
 	cancelTaskExecution() // all assertion variable captured, cancel counting task
@@ -167,7 +167,7 @@ func TestWaitAllCancelingWait(t *testing.T) {
 	assert.True(t, elapsed < 10*2*time.Millisecond)
 
 	// cancel the remote control context to stop the uncontrollable task, or goleak.VerifyNone will fail.
-	defer rcCancel()
+	rcCancel()
 
 	// counting task do testing.Logf in another go routine
 	// while testing.Logf would cause DataRace error when test is already finished: https://github.com/golang/go/issues/40343
