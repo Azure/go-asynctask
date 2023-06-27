@@ -35,6 +35,11 @@ func TestWaitAny(t *testing.T) {
 
 	// should finish right after countingTsk3
 	assert.True(t, elapsed >= 20*time.Millisecond && elapsed < 200*time.Millisecond, fmt.Sprintf("actually elapsed: %v", elapsed))
+
+	// counting task do testing.Logf in another go routine
+	// while testing.Logf would cause DataRace error when test is already finished: https://github.com/golang/go/issues/40343
+	// wait minor time for the go routine to finish.
+	time.Sleep(1 * time.Millisecond)
 }
 
 func TestWaitAnyErrorCase(t *testing.T) {
@@ -108,7 +113,7 @@ func TestWaitAnyErrorWithFailFastCase(t *testing.T) {
 	cancelTaskExecution() // all assertion variable captured, cancel counting task
 
 	assert.Equal(t, "expected error", err.Error(), "expecting first error")
-	// should only finish after longest task.
+	// should finsh after first error
 	assert.True(t, elapsed >= 10*time.Millisecond && elapsed < 20*time.Millisecond, fmt.Sprintf("actually elapsed: %v", elapsed))
 
 	assert.Equal(t, asynctask.StateRunning, countingTskState, "countingTask should NOT finished")
