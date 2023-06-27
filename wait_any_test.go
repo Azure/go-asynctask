@@ -9,6 +9,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestWaitAnyNoTask(t *testing.T) {
+	t.Parallel()
+	ctx, _ := newTestContextWithTimeout(t, 2*time.Second)
+
+	err := asynctask.WaitAny(ctx, nil)
+	assert.NoError(t, err)
+}
+
 func TestWaitAny(t *testing.T) {
 	t.Parallel()
 	ctx, cancelTaskExecution := newTestContextWithTimeout(t, 2*time.Second)
