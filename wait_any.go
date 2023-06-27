@@ -60,7 +60,7 @@ func WaitAny(ctx context.Context, options *WaitAnyOptions, tasks ...Waitable) er
 		}
 	}
 
-	// we have at least 1 error when FailOnAnyError is not set, return first one.
+	// when all tasks failed and FailOnAnyError is not set, return first one.
 	// caller can get error for individual task by using Wait(),
 	// it would return immediately after this WaitAny()
 	return errList[0]
