@@ -7,12 +7,12 @@ import (
 
 // WaitAnyOptions defines options for WaitAny function
 type WaitAnyOptions struct {
-	// FailFast set to true will indicate WaitAny to return on first error it sees.
-	FailFast bool
+	// FailOnAnyError set to true will indicate WaitAny to return on first error it sees.
+	FailOnAnyError bool
 }
 
 // WaitAny block current thread til any of task finished.
-// first error from any tasks passed in will be returned if FailFast is set.
+// first error from any tasks passed in will be returned if FailOnAnyError is set.
 // first task end without error will end wait and return nil
 func WaitAny(ctx context.Context, options *WaitAnyOptions, tasks ...Waitable) error {
 	tasksCount := len(tasks)
@@ -41,12 +41,13 @@ func WaitAny(ctx context.Context, options *WaitAnyOptions, tasks ...Waitable) er
 		case err := <-errorCh:
 			runningTasks--
 			if err != nil {
-				// return immediately after receive first error if FailFast is set.
-				if options.FailFast {
+				// return immediately after receive first error if FailOnAnyError is set.
+				if options.FailOnAnyError {
 					return err
 				}
 				errList = append(errList, err)
 			} else {
+				// return immediately after first task completed.
 				return nil
 			}
 		case <-ctx.Done():
@@ -59,13 +60,8 @@ func WaitAny(ctx context.Context, options *WaitAnyOptions, tasks ...Waitable) er
 		}
 	}
 
-	// we have at least 1 error when FailFast is not set, return first one.
+	// we have at least 1 error when FailOnAnyError is not set, return first one.
 	// caller can get error for individual task by using Wait(),
 	// it would return immediately after this WaitAny()
-	if len(errList) > 0 {
-		return errList[0]
-	}
-
-	// no error at all.
-	return nil
+	return errList[0]
 }
