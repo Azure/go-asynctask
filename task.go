@@ -28,13 +28,13 @@ type Task[T any] struct {
 	err        error
 	cancelFunc context.CancelFunc
 	waitGroup  *sync.WaitGroup
-	mutex      *sync.Mutex
+	mutex      *sync.RWMutex
 }
 
 // State return state of the task.
 func (t *Task[T]) State() State {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
 	return t.state
 }
 
@@ -101,7 +101,7 @@ func Start[T any](ctx context.Context, task AsyncFunc[T]) *Task[T] {
 	ctx, cancel := context.WithCancel(ctx)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	mutex := &sync.Mutex{}
+	mutex := &sync.RWMutex{}
 
 	record := &Task[T]{
 		state:      StateRunning,
@@ -125,7 +125,7 @@ func NewCompletedTask[T any](value T) *Task[T] {
 		// nil cancelFunc and waitGroup should be protected with IsTerminalState()
 		cancelFunc: nil,
 		waitGroup:  nil,
-		mutex:      &sync.Mutex{},
+		mutex:      &sync.RWMutex{},
 	}
 }
 
@@ -162,7 +162,7 @@ func (t *Task[T]) finish(state State, result T, err error) {
 }
 
 func (t *Task[T]) finished() bool {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
 	return t.state.IsTerminalState()
 }
