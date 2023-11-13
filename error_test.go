@@ -11,16 +11,16 @@ import (
 )
 
 func getPanicTask(sleepDuration time.Duration) asynctask.AsyncFunc[string] {
-	return func(ctx context.Context) (*string, error) {
+	return func(ctx context.Context) (string, error) {
 		time.Sleep(sleepDuration)
 		panic("yo")
 	}
 }
 
 func getErrorTask(errorString string, sleepDuration time.Duration) asynctask.AsyncFunc[int] {
-	return func(ctx context.Context) (*int, error) {
+	return func(ctx context.Context) (int, error) {
 		time.Sleep(sleepDuration)
-		return nil, errors.New(errorString)
+		return 0, errors.New(errorString)
 	}
 }
 
@@ -37,12 +37,12 @@ func TestTimeoutCase(t *testing.T) {
 	// I can continue wait with longer time
 	rawResult, err := tsk.WaitWithTimeout(ctx, 2*time.Second)
 	assert.NoError(t, err)
-	assert.Equal(t, 9, *rawResult)
+	assert.Equal(t, 9, rawResult)
 
 	// any following Wait should complete immediately
 	rawResult, err = tsk.WaitWithTimeout(ctx, 2*time.Nanosecond)
 	assert.NoError(t, err)
-	assert.Equal(t, 9, *rawResult)
+	assert.Equal(t, 9, rawResult)
 }
 
 func TestPanicCase(t *testing.T) {

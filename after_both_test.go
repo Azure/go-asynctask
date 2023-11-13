@@ -9,13 +9,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func summarize2CountingTask(ctx context.Context, result1, result2 *int) (*int, error) {
+func summarize2CountingTask(ctx context.Context, result1, result2 int) (int, error) {
 	t := ctx.Value(testContextKey).(*testing.T)
 	t.Logf("result1: %d", result1)
 	t.Logf("result2: %d", result2)
-	sum := *result1 + *result2
+	sum := result1 + result2
 	t.Logf("sum: %d", sum)
-	return &sum, nil
+	return sum, nil
 }
 
 func TestAfterBoth(t *testing.T) {
@@ -28,7 +28,7 @@ func TestAfterBoth(t *testing.T) {
 	sum, err := t3.Result(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, asynctask.StateCompleted, t3.State(), "Task should complete with no error")
-	assert.Equal(t, *sum, 18, "Sum should be 18")
+	assert.Equal(t, sum, 18, "Sum should be 18")
 }
 
 func TestAfterBothFailureCase(t *testing.T) {
@@ -56,11 +56,11 @@ func TestAfterBothActionToFunc(t *testing.T) {
 
 	countingTask1 := asynctask.Start(ctx, getCountingTask(10, "afterboth.P1", 20*time.Millisecond))
 	countingTask2 := asynctask.Start(ctx, getCountingTask(10, "afterboth.P2", 20*time.Millisecond))
-	t2 := asynctask.AfterBoth(ctx, countingTask1, countingTask2, asynctask.AfterBothActionToFunc(func(ctx context.Context, result1, result2 *int) error {
+	t2 := asynctask.AfterBoth(ctx, countingTask1, countingTask2, asynctask.AfterBothActionToFunc(func(ctx context.Context, result1, result2 int) error {
 		t := ctx.Value(testContextKey).(*testing.T)
 		t.Logf("result1: %d", result1)
 		t.Logf("result2: %d", result2)
-		sum := *result1 + *result2
+		sum := result1 + result2
 		t.Logf("sum: %d", sum)
 		return nil
 	}))

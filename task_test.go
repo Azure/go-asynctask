@@ -22,7 +22,7 @@ func newTestContextWithTimeout(t *testing.T, timeout time.Duration) (context.Con
 }
 
 func getCountingTask(countTo int, taskId string, sleepInterval time.Duration) asynctask.AsyncFunc[int] {
-	return func(ctx context.Context) (*int, error) {
+	return func(ctx context.Context) (int, error) {
 		t := ctx.Value(testContextKey).(*testing.T)
 
 		result := 0
@@ -35,10 +35,10 @@ func getCountingTask(countTo int, taskId string, sleepInterval time.Duration) as
 				// testing.Logf would cause DataRace error when test is already finished: https://github.com/golang/go/issues/40343
 				// leave minor time buffer before exit test to finish this last logging at least.
 				t.Logf("[%s]: work canceled", taskId)
-				return &result, nil
+				return result, nil
 			}
 		}
-		return &result, nil
+		return result, nil
 	}
 }
 
@@ -54,7 +54,7 @@ func TestEasyGenericCase(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, asynctask.StateCompleted, t1.State(), "Task should complete by now")
 	assert.NotNil(t, rawResult)
-	assert.Equal(t, *rawResult, 9)
+	assert.Equal(t, rawResult, 9)
 
 	// wait Again,
 	start := time.Now()
@@ -64,7 +64,7 @@ func TestEasyGenericCase(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, asynctask.StateCompleted, t1.State(), "Task should complete by now")
 	assert.NotNil(t, rawResult)
-	assert.Equal(t, *rawResult, 9)
+	assert.Equal(t, rawResult, 9)
 
 	// Result should be returned immediately
 	assert.True(t, elapsed.Milliseconds() < 1, fmt.Sprintf("Second wait should have return immediately: %s", elapsed))
@@ -121,13 +121,13 @@ func TestConsistentResultAfterCancelGenericTask(t *testing.T) {
 	rawResult, err := t2.Result(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, asynctask.StateCompleted, t2.State(), "t2 should complete")
-	assert.Equal(t, *rawResult, 9)
+	assert.Equal(t, rawResult, 9)
 
 	// t1 should remain canceled and
 	rawResult, err = t1.Result(ctx)
 	assert.Equal(t, asynctask.ErrCanceled, err, "should return reason of error")
 	assert.Equal(t, asynctask.StateCanceled, t1.State(), "Task should remain in cancel state")
-	assert.Equal(t, *rawResult, 0) // default value for int
+	assert.Equal(t, rawResult, 0) // default value for int
 }
 
 func TestCompletedGenericTask(t *testing.T) {
@@ -187,10 +187,10 @@ func TestCrazyCaseGeneric(t *testing.T) {
 
 		if i%2 == 0 {
 			assert.Equal(t, asynctask.ErrCanceled, err, fmt.Sprintf("task %s should be canceled, but it finished with %+v", fmt.Sprintf("CrazyTask%d", i), rawResult))
-			assert.Equal(t, *rawResult, 0)
+			assert.Equal(t, rawResult, 0)
 		} else {
 			assert.NoError(t, err)
-			assert.Equal(t, *rawResult, 9)
+			assert.Equal(t, rawResult, 9)
 		}
 	}
 }

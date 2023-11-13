@@ -186,7 +186,7 @@ func TestWaitAllWithNoTasks(t *testing.T) {
 
 // getUncontrollableTask return a task that is not honor context, it only hornor the remoteControl context.
 func getUncontrollableTask(rcCtx context.Context, t *testing.T) asynctask.AsyncFunc[int] {
-	return func(ctx context.Context) (*int, error) {
+	return func(ctx context.Context) (int, error) {
 		for {
 			select {
 			case <-time.After(1 * time.Millisecond):
@@ -195,7 +195,7 @@ func getUncontrollableTask(rcCtx context.Context, t *testing.T) asynctask.AsyncF
 				}
 			case <-rcCtx.Done():
 				t.Logf("[UncontrollableTask]: cancelled by remote control")
-				return nil, rcCtx.Err()
+				return 0, rcCtx.Err()
 			}
 		}
 	}
