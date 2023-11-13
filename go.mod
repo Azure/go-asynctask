@@ -1,4 +1,4 @@
-module github.com/Azure/go-asynctask/v2
+module github.com/Azure/go-asynctask
 
 go 1.20
 

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/go-asynctask/v2"
+	"github.com/Azure/go-asynctask"
 	"github.com/stretchr/testify/assert"
 )
 

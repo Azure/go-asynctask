@@ -7,6 +7,14 @@
 
 Simple mimik of async/await for those come from C# world, so you don't need to dealing with waitGroup/channel in golang.
 
+also the result is strongTyped with go generics, no type assertion is needed.
+
+few chaining method provided:
+- ContinueWith: send task1's output to task2 as input, return reference to task2.
+- AfterBoth : send output of taskA, taskB to taskC as input, return reference to taskC.
+- WaitAll: all of the task have to finish to end the wait (with an option to fail early if any task failed)
+- WaitAny: any of the task finish would end the wait
+
 ```golang
     // start task
     task := asynctask.Start(ctx, countingTask)
