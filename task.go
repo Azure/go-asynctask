@@ -11,17 +11,21 @@ import (
 // AsyncFunc is a function interface this asyncTask accepts.
 type AsyncFunc[T any] func(context.Context) (T, error)
 
-// ActionToFunc convert a Action to Func (C# term), to satisfy the AsyncFunc interface.
-// -  Action is function that runs without return anything
-// -  Func is function that runs and return something
-func ActionToFunc(action func(context.Context) error) func(context.Context) (interface{}, error) {
-	return func(ctx context.Context) (interface{}, error) {
+// ActionToFunc converts an Action to a Func (C# term), satisfying the AsyncFunc interface.
+//
+// - An Action is a function that performs an operation without returning a value.
+// - A Func is a function that performs an operation and returns a value.
+//
+// The returned Func returns nil as the result and the original
+// Action's error as the error value.
+func ActionToFunc(action func(context.Context) error) func(context.Context) (any, error) {
+	return func(ctx context.Context) (any, error) {
 		return nil, action(ctx)
 	}
 }
 
-// Task is a handle to the running function.
-// which you can use to wait, cancel, get the result.
+// Task represents a handle to a running function.
+// It provides methods to wait for completion, cancel execution, and retrieve results or errors.
 type Task[T any] struct {
 	state      State
 	result     T
@@ -31,15 +35,16 @@ type Task[T any] struct {
 	mutex      *sync.RWMutex
 }
 
-// State return state of the task.
+// State returns the current state of the task.
 func (t *Task[T]) State() State {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
 	return t.state
 }
 
-// Cancel the task by cancel the context.
-// !! this rely on the task function to check context cancellation and proper context handling.
+// Cancel cancels the task, by canceling the context.
+// !! it relies on the task function to properly handle context cancellation.
+// If the task has already finished, this method returns false.
 func (t *Task[T]) Cancel() bool {
 	if !t.finished() {
 		t.finish(StateCanceled, *new(T), ErrCanceled)
@@ -58,7 +63,7 @@ func (t *Task[T]) Wait(ctx context.Context) error {
 		return t.err
 	}
 
-	ch := make(chan interface{})
+	ch := make(chan any)
 	go func() {
 		t.waitGroup.Wait()
 		close(ch)
@@ -95,8 +100,10 @@ func (t *Task[T]) Result(ctx context.Context) (T, error) {
 	return t.result, t.err
 }
 
-// Start run a async function and returns you a handle which you can Wait or Cancel.
-// context passed in may impact task lifetime (from context cancellation)
+
+// Start starts an asynchronous task and returns a Task handle to manage it.
+// The provided context can be used to cancel the task.
+// You can use the returned Task to Wait for completion or Cancel the task.
 func Start[T any](ctx context.Context, task AsyncFunc[T]) *Task[T] {
 	ctx, cancel := context.WithCancel(ctx)
 	wg := &sync.WaitGroup{}
@@ -129,8 +136,11 @@ func NewCompletedTask[T any](value T) *Task[T] {
 	}
 }
 
+// runAndTrackGenericTask runs the given task and updates the provided Task record.
+// It handles panics, errors, and task completion.
 func runAndTrackGenericTask[T any](ctx context.Context, record *Task[T], task func(ctx context.Context) (T, error)) {
 	defer record.waitGroup.Done()
+
 	defer func() {
 		if r := recover(); r != nil {
 			err := fmt.Errorf("panic cought: %v, stackTrace: %s, %w", r, debug.Stack(), ErrPanic)
@@ -149,6 +159,8 @@ func runAndTrackGenericTask[T any](ctx context.Context, record *Task[T], task fu
 	record.finish(StateFailed, result, err)
 }
 
+// finish updates the task's state, result, and error if it hasn't finished yet.
+// It also cancels the underlying context.
 func (t *Task[T]) finish(state State, result T, err error) {
 	// only update state and result if not yet canceled
 	t.mutex.Lock()
@@ -161,6 +173,7 @@ func (t *Task[T]) finish(state State, result T, err error) {
 	}
 }
 
+// finished returns true if the task has reached a terminal state.
 func (t *Task[T]) finished() bool {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
