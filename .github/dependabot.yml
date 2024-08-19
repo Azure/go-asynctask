@@ -8,9 +8,17 @@ updates:
   - package-ecosystem: "gomod" # See documentation for possible values
     directory: "/" # Location of package manifests
     schedule:
-      interval: "daily"
+      interval: "weekly"
+    groups:
+      gomod:
+        applies-to: version-updates
+        dependency-type: production
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: daily
+      interval: weekly
+    groups:
+      github-actions:
+        applies-to: version-updates
+        dependency-type: production
