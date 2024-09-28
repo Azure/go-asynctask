@@ -36,6 +36,10 @@ jobs:
     - name: Codecov
       uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673 # v4.5.0
 
+  govulncheck:
+    name: go vuln check
+    runs-on: ubuntu-latest
+    steps:
     - id: govulncheck
       uses: golang/govulncheck-action@v1
       with:
