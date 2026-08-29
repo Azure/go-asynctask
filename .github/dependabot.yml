@@ -22,3 +22,5 @@ updates:
       github-actions:
         applies-to: version-updates
         dependency-type: production
+    cooldown:
+      default-days: 7
